@@ -1,0 +1,14 @@
+# Compiled source #
+###################
+*.o
+
+# Packages #
+############
+
+# Logs and databases #
+######################
+*.log
+
+# OS generated files #
+######################
+._*
