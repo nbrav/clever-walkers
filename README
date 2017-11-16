@@ -1,3 +1,21 @@
 Project title: Scalable brain-like cognitive architecture for virtual agents
 
 Modelling computational and Biological Reinforcement Learning in virtual agents and performing navigation and collision-avoidance
+
+----------------------------------------------------------------------------
+
+Requirements:
+
+1. Unity (works on version 2017.2.0f3 Personal)
+2. Python (for plotting; works on version 2.7.6)
+
+----------------------------------------------------------------------------
+
+Running the brain: rl-brain directory includes scripts to run the brain network.
+
+1. Compile the EmptyBrain.cpp file, and execute. There will be open sockets for UDP communication, waiting for Unity.
+
+Running on Unity (): unity_project directory includes scripts need for Unity.
+
+1. When inside Unity, run a Object with PopulateScene.cs script. It will generate (multiple) agents, running on QAgent.cs and ZombieAgent.cs scripts.
+
