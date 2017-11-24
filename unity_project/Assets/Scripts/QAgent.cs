@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEditor;
 using System.Collections;
 using System.Collections.Generic;
 using System.Text;
@@ -13,7 +14,7 @@ public class QAgent : MonoBehaviour
     private static double DEG_TO_RAD = System.Math.PI/180.0f;
 
     float[] radius_annulus = new float[] {10.0f, 20.0f};
-    int[] angle_sector = new int[] {-45,-15,15,45,405};
+    int[] angle_sector = new int[] {-45,-15,15,45,315};
   
     float[,] state_array;
     int action=0;
@@ -36,18 +37,23 @@ public class QAgent : MonoBehaviour
   
     int frame_rate = 30;
     float time_scale = 1.0F; // TODO: get from PopulateScene
-    float time_per_update = 0.10F; //in sec
+    float time_per_update = 1.0F; //in sec
     float trial_duration = 10.0F;
     int trial_elasped=0; //in sec
   
-    /* UDP channel initialize */
-			  
-    private static int localPort;
+    /* UDP socket and channel set-up */
+
+    public Socket socket = null;
     private string IP;  // define in init
-    public int port;  // define in init
-    IPEndPoint remoteEndPoint;
-    UdpClient client;   
     string strMessage="";
+
+    string THIS_IP = "127.0.0.1";
+    string BESKOW_IP = "193.11.167.133";
+    int PORT = 7890;
+
+    /* constants that you don't have to care about */
+    float AGENT_HEIGHT = 3.0f; // to set-up raycast visuals 
+    int RAYCAST_INTERVAL = 10;  
   
     // Set rate
     void Awake()
@@ -60,20 +66,18 @@ public class QAgent : MonoBehaviour
     // Intializating Unity
     void Start()
     {
-        QualitySettings.vSyncCount = 0;
-	
-        /* UDP channel set-up */
-        // Sending to IP, port. Test in new bash: nc -lu <IP> <port>
-
-        IP = "127.0.0.1";
-        port = 7891;
-        remoteEndPoint = new IPEndPoint(IPAddress.Parse(IP), port);
-        client = new UdpClient();
+      QualitySettings.vSyncCount = 0;
       
-        /* agent-env set-up */
+      /* UDP set-up */
 
-	state_array = new float[angle_sector.Length-1,radius_annulus.Length];
-	start_position = transform.position;
+      socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+      IPEndPoint brain_EP = new IPEndPoint(IPAddress.Any, PORT);
+      socket.Bind(brain_EP);
+      
+      /* agent-env set-up */
+      
+      state_array = new float[angle_sector.Length-1,radius_annulus.Length];
+      start_position = transform.position;
     }
 
     public void setTimeScale(float global_time_scale)
@@ -93,16 +97,17 @@ public class QAgent : MonoBehaviour
 
     void do_action(int action, float speed_default)
     {
-        if(action==8) //halt
+        if(action==7) //halt
 	{
-	  gameObject.transform.Rotate(new Vector3(0, 0, 0) * Time.deltaTime);
-	  gameObject.transform.position += gameObject.transform.forward * (0.0F * Time.deltaTime);
+	  gameObject.transform.Rotate(new Vector3(0, 0, 0) * Time.fixedDeltaTime);
+	  gameObject.transform.position += gameObject.transform.forward * (0.0F * Time.fixedDeltaTime);
 	}
 	else
 	{
 	  int actionSelected = action;
+	  float turning_speed = action_to_angle(action)/time_per_update;
 	  
-	  gameObject.transform.Rotate(new Vector3(0, action_to_angle(actionSelected), 0) * Time.deltaTime);
+	  gameObject.transform.Rotate(new Vector3(0, turning_speed, 0) * Time.deltaTime);
 	  gameObject.transform.position += gameObject.transform.forward * (speed_default * Time.deltaTime);
 	}
     }
@@ -113,7 +118,6 @@ public class QAgent : MonoBehaviour
       UpdateIndex++;
       
       float avgFrameRate = Time.frameCount / Time.time;
-      //Debug.Log("FPS:"+avgFrameRate.ToString());
       
       Application.targetFrameRate = frame_rate;
       Time.timeScale = time_scale;
@@ -122,51 +126,70 @@ public class QAgent : MonoBehaviour
 	do_action(action, 1.5f);
       else
       {
-	Debug.Log("Error: invalid action range..");
-	do_action(4, 0.0f);
+	Debug.Log("Update Error: invalid action range..");
+	do_action(7, 0.0f);
       }     
     }
-
+  
     void FixedUpdate()
-    {
-      //FixedUpdateIndex++;      
-      //Debug.Log("UpdateLatency:"+Time.deltaTime);
+    {      
+      FixedUpdateIndex++;
 
+      if(FixedUpdateIndex%1000==0)
+	Debug.Log(FixedUpdateIndex.ToString());
+      
+      // check for active UDP queue
+      if(socket.Available<=0)
+      {	
+	//Debug.Log("FixedUpdate Error: UDP connection unavailabe!");
+	action = 7;
+	return;	
+      }
+
+      // check for reset 
       if(Time.fixedTime>=trial_duration*trial_elasped)
       {
 	trial_elasped++;
 	reset();
       }
 
-      // Sending state data
-      int data = get_state();
-      if(get_reward()==-1)	  
-	data = -data;
-      
-      byte[] data_out = Encoding.UTF8.GetBytes(data.ToString());
-      client.Send(data_out, data_out.Length, remoteEndPoint);
-
-      // Receiveing action data
+      // execute brain update
       try
       {
-	IPEndPoint anyIP = new IPEndPoint(IPAddress.Any, 0);
-	byte[] data_in = client.Receive(ref anyIP);
+	// receiving action commands
+	IPEndPoint sender = new IPEndPoint(IPAddress.Any, 0);
+	EndPoint Remote = (EndPoint)(sender);
+	
+	byte[] data_in = new byte[256];;
+	socket.ReceiveFrom(data_in,256,0,ref Remote);
 	string text = Encoding.UTF8.GetString(data_in);
 	action = int.Parse(text);
+	
+	// sending state+reward data
+	int state_reward = get_state();
+	if(get_reward()==-1)  state_reward = -state_reward;
+	  
+	byte[] data_out = Encoding.UTF8.GetBytes(state_reward.ToString());
+	socket.SendTo(data_out,SocketFlags.None,Remote);
       }
       catch (Exception err)
       {
-	Debug.Log(err.ToString()+" not receiving brain signal..");
-	action = 4;
+	Debug.Log(err.ToString()+" FixedUpdate unknown error: not receiving brain signal..");
+	action = 7;
       }
-     
+      
+      //Vector3 ray_origin = AGENT_HEIGHT*Vector3.up + transform.position; 
+      //Vector3 ray_vector = Quaternion.AngleAxis(action_to_angle(action), Vector3.up) * transform.forward;
+      //Debug.DrawRay(ray_origin, ray_vector * 2, Color.green); 
     }
-  
+
     void reset()
     {
-      transform.position = start_position;
-      transform.rotation = Quaternion.Euler(0, UnityEngine.Random.Range(-15,15), 0);    
-      
+      Quaternion IntelligentAgentRotation = Quaternion.Euler(0, 0, 0);
+      Vector3 IntelligentAgentPosition = new Vector3(-140.0f, 0.0f, 215.0f);	
+
+      transform.position = IntelligentAgentPosition;
+      transform.rotation = IntelligentAgentRotation;          
       //Debug.Log("Reset!");
     }
 
@@ -186,28 +209,33 @@ public class QAgent : MonoBehaviour
 	  state_array[sector,annulus] = 0.0f;
 
       // each ray around the agent (with some angle)
-      for (int ray_angle=Mathf.Min(angle_sector); ray_angle<=Mathf.Max(angle_sector); ray_angle += 10)
+      for (int ray_angle=Mathf.Min(angle_sector); ray_angle<=Mathf.Max(angle_sector); ray_angle += RAYCAST_INTERVAL)
       {
-	Vector3 ray_origin = 3*Vector3.up + transform.position; // set origin of ray near the eye of agent
+	Vector3 ray_origin = AGENT_HEIGHT*Vector3.up + transform.position; // set origin of ray near the eye of agent
 	Vector3 ray_vector = Quaternion.AngleAxis(ray_angle, Vector3.up) * transform.forward; //set ray vector with iterant angle
-	
-	hits = Physics.RaycastAll(ray_origin, ray_vector, ray_length); //find raycast hit
-	
-	Debug.DrawRay(ray_origin, ray_vector * ray_length, Color.green); // paint all rays green
+	hits = Physics.RaycastAll(ray_origin, ray_vector, ray_length); //find raycast hit	
 
+	//Debug.DrawRay(ray_origin, ray_vector * ray_length, Color.green); // paint all rays green
+	
 	// each hit of a ray
 	for (int i=0; i<hits.Length; i++)
 	{	    
 	  RaycastHit hit = hits[i];
-	  
-	  state_array[angle_to_sector(ray_angle),0] = 1.0f;
-	  Debug.DrawRay(ray_origin, ray_vector * ray_length, Color.yellow); // paint all hit rays orange 
-	  
-	  if(hit.distance < radius_annulus[0])
+
+	  // TODO: make a distance_to_annulus function
+	  if(hit.distance < radius_annulus[0]) //inner annulus
+	  {
+	    state_array[angle_to_sector(ray_angle),0] = 1.0f;
+	    //Debug.DrawRay(ray_origin, ray_vector * ray_length, Color.red); // paint all nearer hit rays orange
+	    //Debug.Log("("+ray_angle+","+hit.distance.ToString()+") -> ("+angle_to_sector(ray_angle).ToString()+",0)");
+
+	  }
+	  else //outer annulus
 	  {
 	    state_array[angle_to_sector(ray_angle),1] = 1.0f;
-	    Debug.DrawRay(ray_origin, ray_vector * ray_length, Color.red); // paint all nearer hit rays orange 
-	  }	    
+	    //Debug.DrawRay(ray_origin, ray_vector * ray_length, Color.yellow); // paint all hit rays orange	  
+	    //Debug.Log("("+ray_angle+","+hit.distance.ToString()+") -> ("+angle_to_sector(ray_angle).ToString()+",1)");
+	  }    
 	}
       }
     }
@@ -218,7 +246,7 @@ public class QAgent : MonoBehaviour
     --------------------- */
     int code_state_halit()
     {
-      //    TODO: complete for new multi-dimensional state_array
+      // TODO: complete for new multi-dimensional state_array
       float state = 0;
       //for(int sector=0; sector<state_array.Length; sector++)
       //{
@@ -257,7 +285,7 @@ public class QAgent : MonoBehaviour
     void OnTriggerEnter (Collider col)
     {
       reward = -1;
-      Debug.Log("Collision!");
+      //Debug.Log("Collision!");
     }
 
     void OnTriggerExit (Collider col)
@@ -274,7 +302,7 @@ public class QAgent : MonoBehaviour
     /* utilities: ray angle to sector index */
     int angle_to_sector(int angle)
     {
-      // angle_sector = {-45,-15,15,45,45};
+      // angle_sector = {-45,-15,15,45,405};
 
       for(int sector = 0; sector < angle_sector.Length-1; sector++)
       {

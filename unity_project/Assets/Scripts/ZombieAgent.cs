@@ -36,7 +36,7 @@ public class ZombieAgent : MonoBehaviour
   
     int frame_rate = 30;
     float time_scale = 1.0F;
-    float time_per_update = 0.10F; //in sec
+    float time_per_update = 1.0F; //in sec
     float trial_duration = 10.0F;
     int trial_elasped=0; //in sec
   
@@ -91,7 +91,7 @@ public class ZombieAgent : MonoBehaviour
   
     void do_action(int action, float speed_default)
     {
-        if(action==0) //halt
+        if(action==7) //halt
 	{
 	  float speed = 0;
 
@@ -117,7 +117,7 @@ public class ZombieAgent : MonoBehaviour
       Application.targetFrameRate = frame_rate;
       Time.timeScale = time_scale;
 
-      action = 4;
+      action = 3;
       
       do_action(action, 1.5f);
     }
@@ -136,12 +136,12 @@ public class ZombieAgent : MonoBehaviour
   
     void reset()
     {
-      float x = -140.0f + UnityEngine.Random.Range(-10,10);
+      float x = -140.0f + UnityEngine.Random.Range(-20,20);
       float y = 0.0f;
-      float z = 227.0f + UnityEngine.Random.Range(-10,10);
+      float z = 215.0f + UnityEngine.Random.Range(-20,20);
 
       transform.position = new Vector3(x,y,z);
-      transform.rotation = Quaternion.Euler(0, UnityEngine.Random.Range(170,190), 0);
+      transform.rotation = Quaternion.Euler(0, UnityEngine.Random.Range(0,360), 0);
     }
 
     /* ------------------------
@@ -161,13 +161,13 @@ public class ZombieAgent : MonoBehaviour
     /* utilities: get angle from action coding */
     float action_to_angle(int actionIndex)
     {
-        if (actionIndex == 1)                 return -45.0f;
-        else if (actionIndex == 2)            return -30.0f;
-        else if (actionIndex == 3)            return -15.0f;
-        else if (actionIndex == 4)            return 0.0f;
-        else if (actionIndex == 5)            return 15.0f;
-        else if (actionIndex == 6)            return 30.0f;
-        else if (actionIndex == 7)            return 45.0f;
+        if (actionIndex == 0)                 return -45.0f;
+        else if (actionIndex == 1)            return -30.0f;
+        else if (actionIndex == 2)            return -15.0f;
+        else if (actionIndex == 3)            return 0.0f;
+        else if (actionIndex == 4)            return 15.0f;
+        else if (actionIndex == 5)            return 30.0f;
+        else if (actionIndex == 6)            return 45.0f;
 	else return -1.0f;
     }
 }

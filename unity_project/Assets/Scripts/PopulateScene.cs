@@ -3,7 +3,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Text;
 using System.IO;
-
+using UnityEngine.UI;
+		      
 public class PopulateScene : MonoBehaviour
 {
     public int numOfZombies = 4;
@@ -15,7 +16,7 @@ public class PopulateScene : MonoBehaviour
     bool AnimationOff;
   
     [SerializeField]
-    float LearningTimeScale = 1.0f;
+    float LearningTimeScale = 5.0f;
     
     [SerializeField]
     GameObject ZombiePrefab;
@@ -44,8 +45,8 @@ public class PopulateScene : MonoBehaviour
 	ZombieAgentPosition = new Vector3[numOfZombies];
 	ZombieAgentRotation = new Quaternion[numOfZombies];
 	
-	//ZombieAgentPosition[0] = new Vector3(-140.0f, 0.0f, 217.0f);
-	//ZombieAgentRotation[0] = Quaternion.Euler(0,90,0);
+	ZombieAgentPosition[0] = new Vector3(-140.0f, 0.0f, 217.0f);
+	ZombieAgentRotation[0] = Quaternion.Euler(0,90,0);
 	
         GenerateAgent();
     }

@@ -12,7 +12,6 @@ using namespace std;
 class qbrain
 {
  private:
-  int _M,_N; // Size of the grid-world
   int _time;
   
   int _state, _state_prime;
@@ -34,6 +33,7 @@ class qbrain
   float _lambda;               // Eligibility decay
 
   FILE *qvalue_outfile;
+  FILE *qvalue_infile; //TODO: do we need two files for reading and writing?
   FILE *reward_outfile;
   
  public:
@@ -43,57 +43,89 @@ class qbrain
   qbrain()
   {
     parse_param();    
-    
-    // Initialize Q matrix and eligibility matrix
-    _qvalue.resize(_reward_size);
-    _etrace.resize(_reward_size);
-    for (int reward_idx=0; reward_idx<_reward_size; reward_idx++)
+
+    float gaussian[] = {0,0.7,1.0,1.5,1.0,0.7,0,1.0};
+
+    std::ifstream fs("qvalue.log");
+    if(fs.is_open())
     {
-      _qvalue[reward_idx].resize(_state_size);
-      _etrace[reward_idx].resize(_state_size);
-      for (int state_idx=0; state_idx<_state_size; state_idx++)
+      printf("\nReading Q-values from file.. ");
+      qvalue_infile = fopen("qvalue.log","rb");
+      fseek(qvalue_infile, -sizeof(float)*_reward_size*_state_size*_action_size, SEEK_END);
+
+      printf(" Here");
+      _qvalue.resize(_reward_size);
+      for (int reward_idx=0; reward_idx<_reward_size; reward_idx++)
       {
-	_qvalue[reward_idx][state_idx].resize(_action_size,1);
-	_etrace[reward_idx][state_idx].resize(_action_size,1);
-	for (int action_idx=0; action_idx<_action_size; action_idx++)
+	_qvalue[reward_idx].resize(_state_size);
+	for (int state_idx=0; state_idx<_state_size; state_idx++)
 	{
-	  _qvalue[reward_idx][state_idx][action_idx] = 1.0;
-	  _etrace[reward_idx][state_idx][action_idx] = 0.0;
+	  _qvalue[reward_idx][state_idx].resize(_action_size);
+	  fread(&_qvalue[reward_idx][state_idx][0], sizeof(float), _action_size, qvalue_infile);
+	}
+      }      
+      fclose(qvalue_infile);   
+    }
+    else
+    {
+      printf("\nInitializing Q-values..");
+      // Initialize Q matrix
+      _qvalue.resize(_reward_size);
+      for (int reward_idx=0; reward_idx<_reward_size; reward_idx++)
+      {
+	_qvalue[reward_idx].resize(_state_size);
+	for (int state_idx=0; state_idx<_state_size; state_idx++)
+	{
+	  _qvalue[reward_idx][state_idx].resize(_action_size,1);
+	  for (int action_idx=0; action_idx<_action_size; action_idx++)
+	  {
+	    _qvalue[reward_idx][state_idx][action_idx] = gaussian[action_idx];
+	  }
 	}
       }
     }
-    // bias to move front; TODO: initalize as Gaussian over action space
-    for (int state_idx=0; state_idx<_state_size; state_idx++)
-      _qvalue[0][state_idx][4] = 2.0;
-
+           
+    // Initialize eligibility matrix
+    _etrace.resize(_reward_size);
+    for (int reward_idx=0; reward_idx<_reward_size; reward_idx++)
+      {
+	_etrace[reward_idx].resize(_state_size);
+	for (int state_idx=0; state_idx<_state_size; state_idx++)
+	{
+	  _etrace[reward_idx][state_idx].resize(_action_size,1);
+	  for (int action_idx=0; action_idx<_action_size; action_idx++)
+	  {
+	    _etrace[reward_idx][state_idx][action_idx] = 0.0;
+	  }
+	}
+      }   
+    
     _reward.resize(_reward_size);
     
     // Initiate delta_i
     _rpe.resize(_reward_size);
     std::fill(_rpe.begin(), _rpe.end(), 1.0);
 
-    qvalue_outfile = fopen("qvalue.log", "wb");
+    qvalue_outfile = fopen("qvalue.log", "ab");
     fclose(qvalue_outfile);
 
-    reward_outfile = fopen("reward-punishment.log", "wb");
+    reward_outfile = fopen("reward-punishment.log", "ab");
     fclose(reward_outfile);
   }
 
   void parse_param()
   {
-    _state_size = 64; //infile >> _state_size;    
-    _action_size = 8;  //TODO: must get it from paramfile
-    _reward_size = 1; //infile >> _reward_size;
+    _state_size = 256; //TODO: Must use a param file     
+    _action_size = 8;  //TODO: Must use a param file     
+    _reward_size = 1; //TODO : Must use a param file     
     
     _alpha = 0.1;
+    _epsilon = 0.7; 
+    _lambda = 0.8;
+    
     _gamma.resize(_reward_size);
-
     for (int reward_idx=0; reward_idx<_reward_size; reward_idx++)
-    {
       _gamma[reward_idx] = 0.9;
-    }
-    _epsilon = 0.7;
-    _lambda = 0.6;
   }
 
   void reset()
@@ -119,20 +151,15 @@ class qbrain
 
   void qvalue_log()
   {
-    qvalue_outfile = fopen("qvalue.log", "ab"); //ab
+    qvalue_outfile = fopen("qvalue.log", "ab"); // overwrite every EPOCHs
     for (int reward_idx=0; reward_idx<_reward_size; reward_idx++)
       for (int state_idx=0; state_idx<_state_size; state_idx++)
 	fwrite(&_qvalue[reward_idx][state_idx][0], sizeof(float) , _action_size, qvalue_outfile);
     fclose(qvalue_outfile);
   }
-
+  
   /* ---------- I/O ----------------*/
   
-  void set_state(int state)
-  {
-    _state = state;
-  }
-
   void compute_action()
   { 
     int greedy_action =
@@ -143,7 +170,12 @@ class qbrain
     else // explore
       _action = rand()%_action_size;
   }
-  
+
+  void set_state(int state)
+  {
+    _state = state;
+  }
+
   int get_action()
   {
     return _action;
@@ -156,7 +188,7 @@ class qbrain
     for (int reward_idx=0; reward_idx<_reward_size; reward_idx++)
       for (int state_idx=0; state_idx<_state_size; state_idx++)
     	for (int action_idx=0; action_idx<_action_size; action_idx++)
-	  _etrace[reward_idx][_state][_action] *= (_lambda*_gamma[reward_idx]);
+	  _etrace[reward_idx][state_idx][action_idx] *= (_lambda*_gamma[reward_idx]);
     for (int reward_idx=0; reward_idx<_reward_size; reward_idx++)
       _etrace[reward_idx][_state][_action] = 1.0;
   }
@@ -167,13 +199,15 @@ class qbrain
     {
       // releasing dopamine
       _rpe[reward_idx] = _reward[reward_idx] +
-	_gamma[reward_idx]*_qvalue[reward_idx][_state][_action]
+	_gamma[reward_idx]*(*std::max_element(_qvalue[reward_idx][_state_prime].begin(), _qvalue[reward_idx][_state_prime].end()))
 	- _qvalue[reward_idx][_state][_action];
-      // cortico-striatal learning
-      for (int state_idx=0; state_idx<_state_size; state_idx++)
-    	for (int action_idx=0; action_idx<_action_size; action_idx++)
-	  _qvalue[reward_idx][state_idx][action_idx] += _alpha*_rpe[reward_idx]*_etrace[reward_idx][state_idx][action_idx];
     }
+    
+    // cortico-striatal learning
+    for (int reward_idx=0; reward_idx<_reward_size; reward_idx++)
+      for (int state_idx=0; state_idx<_state_size; state_idx++)
+	for (int action_idx=0; action_idx<_action_size; action_idx++)
+	  _qvalue[reward_idx][state_idx][action_idx] += _alpha*_rpe[reward_idx]*_etrace[reward_idx][state_idx][action_idx];    
   }
   void advance_timestep(int state_prime, int reward, int time)    
   {
@@ -184,6 +218,7 @@ class qbrain
     update_etrace();
     update_qvalue();
    
+    //if(time!= 0 && time%1000==0)
     if(time%1000==0)
       qvalue_log();
     

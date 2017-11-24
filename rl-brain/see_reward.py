@@ -32,7 +32,8 @@ fig = plt.figure()
 
 plt.plot(T_mean,R_mean,'b',linewidth=1.5,alpha=1)
 plt.title('Frequency of collisions')
-plt.xlabel('(time)x1000 updates')
+plt.xlabel('timex'+str(BIN_SIZE)+' updates')
+plt.ylim(0,R_mean.max()*3.0/2.0);
 plt.legend()
 plt.grid()
 

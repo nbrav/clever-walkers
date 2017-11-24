@@ -1,7 +1,10 @@
-#define SERVICE_PORT 7891
-#define _VERBOSE false
+#define PORT 7890
+#define _VERBOSE_UDP false
 #define BUFSIZE 2048
 #define CLOCK_PRECISION 1E9
+
+//#define NARESH_IP "130.229.176.87"
+#define THIS_IP "127.0.0.1" // use if running Brain & Unity in same system
 
 #include <iostream>
 #include <cstdlib>
@@ -20,34 +23,35 @@ using namespace std;
 
 int main(int argc, char **argv)
 {
-        printf("Initialization..");
-
 	/* create a UDP socket */
-
-        struct sockaddr_in myaddr;	/* our address */
+	
+        //struct sockaddr_in myaddr;	/* our address */
 	struct sockaddr_in remaddr;	/* remote address */
 	socklen_t addrlen = sizeof(remaddr);		/* length of addresses */
-	int recvlen;			/* # bytes received */
-	int fd;				/* our socket */
+	int recvlen=-1;			/* # bytes received */
+
+	int fd;				/* our socket */ /* music-osc: udpSocket */
+
 	int msgcnt = 0;			/* count # of messages we received */
 	char buf[BUFSIZE];	/* receive buffer */
-
-	if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-		perror("cannot create socket\n");
-		return 0;
+	
+        // creating socket
+	if ((fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) 
+	{
+	  perror("cannot create socket\n");
+	  return 0;
 	}
 
-	memset((char *)&myaddr, 0, sizeof(myaddr));
-	myaddr.sin_family = AF_INET;
-	myaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	myaddr.sin_port = htons(SERVICE_PORT);
+	memset((char *)&remaddr, 0, sizeof(remaddr));
+	remaddr.sin_family = AF_INET;
+	remaddr.sin_port = htons(PORT); 
 
-	if (bind(fd, (struct sockaddr *)&myaddr, sizeof(myaddr)) < 0) {
-		perror("bind failed");
-		return 0;
+	if (inet_aton(THIS_IP, &remaddr.sin_addr)==0) 
+	{
+	  fprintf(stderr, "inet_aton() failed\n");
+	  exit(1);
 	}
-        printf("Listening..");
-
+	
 	timespec t_send,t_recv;
 	bool first_exchange=false;
 	
@@ -62,45 +66,41 @@ int main(int argc, char **argv)
 	
 	for (;;)
 	{
+	  if(msgcnt%1000==0)
+	    printf("\n%d updates and going strong..", msgcnt); 
+
+          // send action                              
+          sprintf(buf, "%d ", action);          
+
+          if (sendto(fd, buf, strlen((char*)buf), 0, (struct sockaddr *)&remaddr, addrlen) < 0)
+            perror("sendto");
+
+          if(_VERBOSE_UDP) printf("-> (\"%s\")", buf); fflush(stdout);
+
 	  // receive state,reward[TODO]
 	  recvlen = recvfrom(fd, buf, BUFSIZE, 0, (struct sockaddr *)&remaddr, &addrlen);
 	  clock_gettime(CLOCK_REALTIME, &t_recv);
-
-	  printf(" unity_latency: %fms",
-		 1000*(t_recv.tv_sec-t_send.tv_sec)+1000*(double)(t_recv.tv_nsec-t_send.tv_nsec)/(double)CLOCK_PRECISION);	  
 
 	  if (recvlen > 0)
 	  {
 	    buf[recvlen] = 0;
 	    text_in = atoi(buf);
-	    //state = abs(text_in); reward = (text_in>0)?0:-1;
-	    state = abs(text_in); reward = (text_in>=0)?0:-1; // TODO: now positive reward
-	    printf("\n (\"%d\",\"%d\") -> [BRAIN] ", state, reward);
+	    state = abs(text_in); reward = (text_in>=0)?0:-1;
+	    if(_VERBOSE_UDP) printf("\n (\"%d\",\"%d\") -> [BRAIN] ", state, reward);
 	  }
 	  else
-	    printf("uh oh - something went wrong!\n");	  
+	    printf("Uh oh! Something horrible happened with the simulator\n");	  
    	  
 	  // simulate the "Brain"
 	  msgcnt++;
 
-	  brain.set_state(state);
 	  brain.advance_timestep(state, reward, timestep);
+
+	  brain.set_state(state);
 	  action = brain.get_action();
 
 	  timestep++;
-
-	  // send action
-	  sprintf(buf, "%d", action);
 	  
-	  //printf("sending response.. \n");
-	  printf("-> (\"%s\")", buf);
-
-	  if (sendto(fd, buf, strlen((char*)buf), 0, (struct sockaddr *)&remaddr, addrlen) < 0)
-	    perror("sendto");
-
-	  clock_gettime(CLOCK_REALTIME, &t_send);
-	  printf(" brain_latency: %fms",
-		 1000*(t_send.tv_sec-t_recv.tv_sec)+1000*(double)(t_send.tv_nsec-t_recv.tv_nsec)/(double)CLOCK_PRECISION);
-
+	  clock_gettime(CLOCK_REALTIME, &t_send);	  
 	}
 }
