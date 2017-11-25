@@ -13,9 +13,29 @@ Requirements:
 
 Running the brain: rl-brain directory includes scripts to run the brain network.
 
-1. Compile the EmptyBrain.cpp file, and execute. There will be open sockets for UDP communication, waiting for Unity.
+1. Compile the EmptyBrain.cpp file, execute after playing Unity simulation.
 
-Running on Unity (): unity_project directory includes scripts need for Unity.
+Running the brain on PDC: rl-brain has all the scripts
+
+1. Login to Beskow PDC, using kinit and ssh.
+
+2. Copy files to the directory in your klemming file system: 
+
+> cd /cfs/klemming/nobackup/<u>/<username> 
+
+where <username> is your PDC username and <u> is its first letter
+
+3. Compile as CC -o EmptyBrain EmptyBrain.cpp
+
+4. Get a node as: salloc --nodes=1 -t 0:10:00 -A <alloc_name>
+
+where <alloc_name> is your allocation name. You can find it by projinfo command.
+
+5. Run the executable as
+
+> aprun -n 1 ./EmptyBrain
+
+Running Unity: unity_project directory includes scripts need for Unity.
 
 1. When inside Unity, run a Object with PopulateScene.cs script. It will generate (multiple) agents, running on QAgent.cs and ZombieAgent.cs scripts.
 
