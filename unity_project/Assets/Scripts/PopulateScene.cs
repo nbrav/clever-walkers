@@ -10,8 +10,8 @@ using System;
 		      
 public class PopulateScene : MonoBehaviour
 {
-    public int numOfZombies = 0;
-    public int numOfWalkers = 10;
+    public int numOfZombies = 9;
+    public int numOfWalkers = 1;
   
     [SerializeField]
     bool Learning;
@@ -82,7 +82,7 @@ public class PopulateScene : MonoBehaviour
     {
       FixedUpdateIndex++;
 
-      if(agent.Length<numOfWalkers)
+      if(agent.Length<numOfWalkers+numOfZombies)
 	return;
       
       if(FixedUpdateIndex%1000==0)
@@ -100,8 +100,8 @@ public class PopulateScene : MonoBehaviour
       if(Time.fixedTime>=trial_duration*trial_elapsed)
       {
 	trial_elapsed++;
-	//for(int i=0; i<numOfWalkers;i++)
-	// agent[0].GetComponent<QAgent>().reset();
+	for(int i=0; i<numOfWalkers;i++)
+	 agent[i].GetComponent<QAgent>().reset();
       }
 
       // execute brain update
@@ -134,10 +134,11 @@ public class PopulateScene : MonoBehaviour
 
     void createZombieAgent(int index)
     {
-        GameObject clone = GameObject.Instantiate(ZombiePrefab, ZombieAgentPosition[0], ZombieAgentRotation[0]) as GameObject;
+        GameObject clone = GameObject.Instantiate(ZombiePrefab) as GameObject;
 
         clone.GetComponent<ZombieAgent>().setSeed(index);
-        clone.GetComponent<ZombieAgent>().setGoalObject(ZombieAgentPosition[0]);
+	clone.GetComponent<ZombieAgent>().reset();
+        //clone.GetComponent<ZombieAgent>().setGoalObject(ZombieAgentPosition[0]);
         clone.GetComponent<ZombieAgent>().setDummyAgentPrefab(agentPrefab);
 
 	Rigidbody clone_body =  clone.AddComponent<Rigidbody>();
@@ -159,9 +160,10 @@ public class PopulateScene : MonoBehaviour
 
     void createSmartAgent(int index)
     {
-        GameObject clone = GameObject.Instantiate(HumanPrefab, IntelligentAgentPosition, IntelligentAgentRotation);
+        GameObject clone = GameObject.Instantiate(HumanPrefab);
 
         clone.GetComponent<QAgent>().setDummyAgentPrefab(agentPrefab);
+	clone.GetComponent<QAgent>().reset();
 
         if (Learning)
         {
@@ -179,9 +181,10 @@ public class PopulateScene : MonoBehaviour
 
     void GenerateAgent()
     {
-        for (int i = 0; i < numOfWalkers; i++)
-        {
+        int i=0;
+        for (;i<numOfWalkers; i++)
 	    createSmartAgent(i);
-        }
+        for (;i<numOfWalkers+numOfZombies; i++)
+	    createZombieAgent(i);
     }
 }
