@@ -18,10 +18,10 @@ public class PopulateScene : MonoBehaviour
 
     [SerializeField]
     bool AnimationOff;
-  
+
     [SerializeField]
     float LearningTimeScale = 5.0f;
-    
+
     [SerializeField]
     GameObject ZombiePrefab;
 
@@ -30,7 +30,7 @@ public class PopulateScene : MonoBehaviour
 
     [SerializeField]
     GameObject agentPrefab;
-  
+
     GameObject[] agent;
 
     Vector3 IntelligentAgentPosition;
@@ -54,7 +54,7 @@ public class PopulateScene : MonoBehaviour
     int PORT = 7890;
 
     // Use this for initialization
-    void Start ()
+    void Start()
     {
         Application.targetFrameRate = frame_rate;
 	Time.fixedDeltaTime = time_per_update;
@@ -136,8 +136,8 @@ public class PopulateScene : MonoBehaviour
     {
         GameObject clone = GameObject.Instantiate(ZombiePrefab, ZombieAgentPosition[0], ZombieAgentRotation[0]) as GameObject;
 
-	clone.GetComponent<ZombieAgent>().setSeed(index);
-	clone.GetComponent<ZombieAgent>().setGoalObject(ZombieAgentPosition[0]);
+        clone.GetComponent<ZombieAgent>().setSeed(index);
+        clone.GetComponent<ZombieAgent>().setGoalObject(ZombieAgentPosition[0]);
         clone.GetComponent<ZombieAgent>().setDummyAgentPrefab(agentPrefab);
 
 	Rigidbody clone_body =  clone.AddComponent<Rigidbody>();
@@ -156,34 +156,34 @@ public class PopulateScene : MonoBehaviour
 	  
 	agent[index] = clone;
     }
-    
+
     void createSmartAgent(int index)
     {
         GameObject clone = GameObject.Instantiate(HumanPrefab, IntelligentAgentPosition, IntelligentAgentRotation);
-	
+
         clone.GetComponent<QAgent>().setDummyAgentPrefab(agentPrefab);
-	
-	if(Learning)
-	{
-	  clone.GetComponent<QAgent>().setTimeScale(LearningTimeScale);
-	}
-	else
-	{
-	  clone.GetComponent<QAgent>().setTimeScale(1.0f);
-	}
 
-	if(AnimationOff) Destroy(clone.GetComponent<Animator>());	  
+        if (Learning)
+        {
+            clone.GetComponent<QAgent>().setTimeScale(LearningTimeScale);
+        }
+        else
+        {
+            clone.GetComponent<QAgent>().setTimeScale(1.0f);
+        }
 
-	agent[index] = clone;
+        if (AnimationOff) Destroy(clone.GetComponent<Animator>());
+
+        agent[index] = clone;
     }
 
     void GenerateAgent()
-    {	
+    {
+        createSmartAgent(0);
 
-      for (int i = 0; i < numOfWalkers; i++)
-      {
-	createSmartAgent(i);
-	//createZombieAgent(i);
-      }
+        for (int i = 0; i < numOfZombies; i++)
+        {
+            createZombieAgent(i);
+        }
     }
 }

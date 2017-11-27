@@ -1,25 +1,31 @@
 using UnityEngine;
+#if UNITY_EDITOR
 using UnityEditor;
+#endif
 using System.Collections;
 using System.Collections.Generic;
 using System.Text;
 using System.IO;
 using System.Threading;
 using System;
-			      
+
 public class QAgent : MonoBehaviour
 {
-    private static double DEG_TO_RAD = System.Math.PI/180.0f;
+    private static double DEG_TO_RAD = System.Math.PI / 180.0f;
 
     float[] radius_annulus = new float[] {5.0f,10.0f,15.0f,20.0f};
     int[] angle_sector = new int[] {-105,-95,-85,-75,-65,-55,-45,-35,-25,-15,-5,5,15,25,35,45,55,65,75,85,95,105,255};
-  
+
+    // Color of Sector setup
+    List<Vector2> colorList = new List<Vector2>();
+    float[] color_angle_sector = new float[] {-105,-95,-85,-75,-65,-55,-45,-35,-25,-15,-5,5,15,25,35,45,55,65,75,85,95,105};
+
     float[,] state_array;
     int _action=7;
     int reward = 0;
-		  
-    private string[] ray_colour_code = new string[] {"ANNULUS_COLOUR", "SECTOR_COLOUR"};
-    
+
+    private string[] ray_colour_code = new string[] { "ANNULUS_COLOUR", "SECTOR_COLOUR" };
+
     GameObject goalGameObject;
 
     [SerializeField]
@@ -32,7 +38,7 @@ public class QAgent : MonoBehaviour
     int UpdateIndex = 0;
 
     /* Timing setup */
-  
+
     int frame_rate = 30;
     float time_scale = 1.0F; // TODO: get from PopulateScene
     float time_per_update = 1.0F; //in sec
@@ -40,15 +46,15 @@ public class QAgent : MonoBehaviour
     /* constants that you don't have to care about */
     float AGENT_HEIGHT = 3.0f; // to set-up raycast visuals 
     int RAYCAST_INTERVAL = 5;  
-  
+
     // Set rate
     void Awake()
     {
-      Application.targetFrameRate = frame_rate;
-      Time.fixedDeltaTime = time_per_update;
-      Screen.fullScreen = true;
+        Application.targetFrameRate = frame_rate;
+        Time.fixedDeltaTime = time_per_update;
+        Screen.fullScreen = true;
     }
-  
+
     // Intializating Unity
     void Start()
     {
@@ -62,7 +68,7 @@ public class QAgent : MonoBehaviour
 
     public void setTimeScale(float global_time_scale)
     {
-      time_scale = global_time_scale;
+        time_scale = global_time_scale;
     }
 
     public void setGoalObject(Vector3 newGoalObj)
@@ -94,22 +100,21 @@ public class QAgent : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-      UpdateIndex++;
-      
-      float avgFrameRate = Time.frameCount / Time.time;
-      
-      Application.targetFrameRate = frame_rate;
-      Time.timeScale = time_scale;
 
-      if(_action>=0 && _action<8)
-	do_action(_action, 1.5f);
-      else
-      {
-	Debug.Log("Update Error: invalid action range..");
-	do_action(7, 0.0f);
-      }     
+        float avgFrameRate = Time.frameCount / Time.time;
+
+        Application.targetFrameRate = frame_rate;
+        Time.timeScale = time_scale;
+
+        if (_action >= 0 && _action < 8)
+            do_action(_action, 1.5f);
+        else
+        {
+            Debug.Log("Update Error: invalid action range..");
+            do_action(7, 0.0f);
+        }
     }
-  
+
     void FixedUpdate()
     {
       // Visualize action vectors
@@ -150,6 +155,7 @@ public class QAgent : MonoBehaviour
     --------------------- */
     void cast_ray()
     {
+      colorList.Clear();
       // cast a ray around the agent 
       RaycastHit[] hits;
 
@@ -173,8 +179,42 @@ public class QAgent : MonoBehaviour
 	{	    
 	  RaycastHit hit = hits[i];
 	  state_array[angle_to_sector(ray_angle),distance_to_annulus(hit.distance)] = 1.0f;
+	  
+	  //List of sector colors
+	  colorList.Add(new Vector2(distance_to_annulus(hit.distance), angle_id(ray_angle)));
 	}
       }
+    }
+
+    // Get which sector has collision
+    float angle_id(float angle)
+    {
+        for (int i = 0; i < color_angle_sector.Length - 1; i++)
+        {
+            if (color_angle_sector[i] <= angle && angle <= color_angle_sector[i + 1])
+            {
+                return (float)i;
+            }
+        }
+        return (float)(color_angle_sector.Length - 1);
+    }
+
+    // Return color list to draw sector
+    public List<Vector2> get_color_list()
+    {
+        return colorList;
+    }
+
+    // Get radius array
+    public float[] get_radius_array()
+    {
+        return radius_annulus;
+    }
+
+    // Get angle array
+    public float[] get_anlge_array()
+    {
+        return color_angle_sector;
     }
 
     /* --------------------
@@ -183,14 +223,14 @@ public class QAgent : MonoBehaviour
     --------------------- */
     int code_state_combinatoric_sectorized()
     {
-      // TODO: complete for new multi-dimensional state_array
-      float state = 0;
-      //for(int sector=0; sector<state_array.Length; sector++)
-      //{
-      //state += state_array[sector] * Mathf.Pow(radius_annulus.Length+1, state_array.Length-1-sector);
-	//Debug.Log("["+state_array[0].ToString()+" "+state_array[1].ToString()+" "+state_array[2].ToString()+"] "+state.ToString());
-      //}
-      return (int)state;
+        // TODO: complete for new multi-dimensional state_array
+        float state = 0;
+        //for(int sector=0; sector<state_array.Length; sector++)
+        //{
+        //state += state_array[sector] * Mathf.Pow(radius_annulus.Length+1, state_array.Length-1-sector);
+        //Debug.Log("["+state_array[0].ToString()+" "+state_array[1].ToString()+" "+state_array[2].ToString()+"] "+state.ToString());
+        //}
+        return (int)state;
     }
 
     /* --------------------
@@ -199,12 +239,12 @@ public class QAgent : MonoBehaviour
     --------------------- */
     int code_state_combinatoric()
     {
-      float state = 0;
-      int unit_tracker = 0;
-      for(int sector=0; sector<angle_sector.Length-1; sector++)
-	for(int annulus=0; annulus<radius_annulus.Length; annulus++)
-	  state += state_array[sector,annulus] * Mathf.Pow(2,unit_tracker++);
-      return (int)state;
+        float state = 0;
+        int unit_tracker = 0;
+        for (int sector = 0; sector < angle_sector.Length - 1; sector++)
+            for (int annulus = 0; annulus < radius_annulus.Length; annulus++)
+                state += state_array[sector, annulus] * Mathf.Pow(2, unit_tracker++);
+        return (int)state;
     }
 
     /* --------------------
@@ -242,29 +282,30 @@ public class QAgent : MonoBehaviour
     int get_state()
     {
         cast_ray();//cast ray around the agent and fill up sensor matrix
-	return code_state();
+        get_color_list();
+        return code_state();
     }
 
     /* ------------------------
         get reward
     ----------------------------*/
-    void OnTriggerEnter (Collider col)
+    void OnTriggerEnter(Collider col)
     {
       reward = -1;
       Debug.Log("Collision!");
     }
 
-    void OnTriggerExit (Collider col)
+    void OnTriggerExit(Collider col)
     {
-      reward = 0;
+        reward = 0;
     }
 
     int get_reward()
     {
-      return reward;
+        return reward;
     }
-      
-    
+
+
     /* utilities: ray angle to sector index */
     int angle_to_sector(int angle)
     {
