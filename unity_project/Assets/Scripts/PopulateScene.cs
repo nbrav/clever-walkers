@@ -100,8 +100,8 @@ public class PopulateScene : MonoBehaviour
       if(Time.fixedTime>=trial_duration*trial_elapsed)
       {
 	trial_elapsed++;
-	for(int i=0; i<numOfWalkers;i++)
-	  agent[i].GetComponent<QAgent>().reset();
+	//for(int i=0; i<numOfWalkers;i++)
+	// agent[0].GetComponent<QAgent>().reset();
       }
 
       // execute brain update
@@ -179,11 +179,9 @@ public class PopulateScene : MonoBehaviour
 
     void GenerateAgent()
     {
-        createSmartAgent(0);
-
-        for (int i = 0; i < numOfZombies; i++)
+        for (int i = 0; i < numOfWalkers; i++)
         {
-            createZombieAgent(i);
+	    createSmartAgent(i);
         }
     }
 }
