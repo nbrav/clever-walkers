@@ -12,7 +12,7 @@ qtable = np.fromfile("qvalue.log",np.float32)
 if(os.path.isfile("qvalue.log")==False):
     print "Run the brain first..."
 
-state_size = 256;
+state_size = 88;
 action_size = 8;
 
 Q = qtable.reshape(len(qtable)/state_size/action_size,state_size,action_size)
@@ -25,7 +25,7 @@ print "|S|=",Q.shape[1],";|A|=",Q.shape[2],
 
 fig, axes = plt.subplots(nrows=5, ncols=1)
 
-S = range(0,100);
+S = range(0,88);
 T = Q.shape[0];
 T1 = int(T/4); T2 = int(T/2); T3 = int(3*T/4);
 

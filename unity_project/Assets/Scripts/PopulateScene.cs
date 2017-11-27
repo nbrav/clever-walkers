@@ -4,11 +4,15 @@ using System.Collections.Generic;
 using System.Text;
 using System.IO;
 using UnityEngine.UI;
+using System.Net.Sockets;
+using System.Net;
+using System;
 		      
 public class PopulateScene : MonoBehaviour
 {
-    public int numOfZombies = 4;
-
+    public int numOfZombies = 0;
+    public int numOfWalkers = 10;
+  
     [SerializeField]
     bool Learning;
 
@@ -34,26 +38,98 @@ public class PopulateScene : MonoBehaviour
     Vector3[] ZombieAgentPosition;
     Quaternion[] ZombieAgentRotation;
 
+    /* Episode variables */
+    int FixedUpdateIndex;
+    int trial_elapsed=0;
+    float trial_duration = 20.0F;
+    int frame_rate = 30;
+    float time_scale = 1.0F; 
+    float time_per_update = 1.0F; //in sec
+    
+    /* UDP socket and channel set-up */
+
+    public Socket socket = null;
+    string THIS_IP = "127.0.0.1";
+    string BESKOW_IP = "193.11.167.133";
+    int PORT = 7890;
+
     // Use this for initialization
     void Start ()
     {
-	agent = new GameObject[numOfZombies+1];
+        Application.targetFrameRate = frame_rate;
+	Time.fixedDeltaTime = time_per_update;
+	
+	agent = new GameObject[numOfZombies+numOfWalkers];
 	
 	IntelligentAgentRotation = Quaternion.Euler(0, 240, 0);
 	IntelligentAgentPosition = new Vector3(-140.0f, 0.0f, 210.0f);	
 
-	ZombieAgentPosition = new Vector3[numOfZombies];
-	ZombieAgentRotation = new Quaternion[numOfZombies];
-	
-	ZombieAgentPosition[0] = new Vector3(-140.0f, 0.0f, 217.0f);
-	ZombieAgentRotation[0] = Quaternion.Euler(0,90,0);
-	
         GenerateAgent();
+
+	/* UDP set-up */
+
+	socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+	IPEndPoint brain_EP = new IPEndPoint(IPAddress.Any, PORT);
+	socket.Bind(brain_EP);
     }
 
     // Update is called once per frame
     void Update ()
-    {	
+    {
+    }
+
+    void FixedUpdate()
+    {
+      FixedUpdateIndex++;
+
+      if(agent.Length<numOfWalkers)
+	return;
+      
+      if(FixedUpdateIndex%1000==0)
+	Debug.Log(FixedUpdateIndex.ToString());
+      
+      // check for active UDP queue
+      if(socket.Available<=0)
+      {	
+	Debug.Log("PopulateScene FixedUpdate Error: UDP connection unavailabe!");
+	//action = 7;
+	return;	
+      }
+
+      // check for reset 
+      if(Time.fixedTime>=trial_duration*trial_elapsed)
+      {
+	trial_elapsed++;
+	for(int i=0; i<numOfWalkers;i++)
+	  agent[i].GetComponent<QAgent>().reset();
+      }
+
+      // execute brain update
+      try
+      {
+	// finding any client
+	IPEndPoint sender = new IPEndPoint(IPAddress.Any, 0);
+	EndPoint Remote = (EndPoint)(sender);
+	
+	// receiving UDP; TODO: multi-agent
+	byte[] data_in = new byte[256];;
+	socket.ReceiveFrom(data_in,256,0,ref Remote);
+	string text = Encoding.UTF8.GetString(data_in);	
+	for(int i=0; i<numOfWalkers; i++)
+	  agent[i].GetComponent<QAgent>().set_udp(int.Parse(text));
+	
+	// sending UDP; TODO: for multi-agent
+	int udp_out_agent = 0;
+	for(int i=0; i<numOfWalkers; i++)
+	  udp_out_agent = agent[i].GetComponent<QAgent>().get_udp();	  
+	byte[] data_out = Encoding.UTF8.GetBytes(udp_out_agent.ToString());
+	socket.SendTo(data_out,SocketFlags.None,Remote);
+      }
+      catch (Exception err)
+      {
+	Debug.Log(err.ToString()+" FixedUpdate unknown error: not receiving brain signal..");
+        agent[0].GetComponent<QAgent>().set_udp(7);
+      }
     }
 
     void createZombieAgent(int index)
@@ -63,6 +139,7 @@ public class PopulateScene : MonoBehaviour
 	clone.GetComponent<ZombieAgent>().setSeed(index);
 	clone.GetComponent<ZombieAgent>().setGoalObject(ZombieAgentPosition[0]);
         clone.GetComponent<ZombieAgent>().setDummyAgentPrefab(agentPrefab);
+
 	Rigidbody clone_body =  clone.AddComponent<Rigidbody>();
 	clone_body.useGravity = false;
 
@@ -102,11 +179,11 @@ public class PopulateScene : MonoBehaviour
 
     void GenerateAgent()
     {	
-        createSmartAgent(0);
 
-	for (int i = 0; i < numOfZombies; i++)
-	{
-	  createZombieAgent(i);
-	}
+      for (int i = 0; i < numOfWalkers; i++)
+      {
+	createSmartAgent(i);
+	//createZombieAgent(i);
+      }
     }
 }

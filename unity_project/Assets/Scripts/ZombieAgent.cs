@@ -37,7 +37,7 @@ public class ZombieAgent : MonoBehaviour
     int frame_rate = 30;
     float time_scale = 1.0F;
     float time_per_update = 1.0F; //in sec
-    float trial_duration = 10.0F;
+    float trial_duration = 20.0F;
     int trial_elasped=0; //in sec
   
 
@@ -134,14 +134,18 @@ public class ZombieAgent : MonoBehaviour
       }     
     }
   
-    void reset()
+    public void reset()
     {
-      float x = -140.0f + UnityEngine.Random.Range(-20,20);
-      float y = 0.0f;
-      float z = 215.0f + UnityEngine.Random.Range(-20,20);
+      float rand_pos_x = -140.0f + UnityEngine.Random.Range(-20,20);
+      float rand_pos_y = 0.0f;
+      float rand_pos_z = 215.0f + UnityEngine.Random.Range(-20,20);
 
-      transform.position = new Vector3(x,y,z);
-      transform.rotation = Quaternion.Euler(0, UnityEngine.Random.Range(0,360), 0);
+      float rand_theta_x = 0.0f;
+      float rand_theta_y = UnityEngine.Random.Range(0,360);
+      float rand_theta_z = 0.0f;
+
+      transform.position = new Vector3(rand_pos_x,rand_pos_y,rand_pos_z);
+      transform.rotation = Quaternion.Euler(rand_theta_x,rand_theta_y,rand_theta_z);
     }
 
     /* ------------------------
@@ -150,7 +154,7 @@ public class ZombieAgent : MonoBehaviour
     void OnTriggerEnter (Collider col)
     {
       reward = -1;
-      Debug.Log("Collision!");
+      //Debug.Log("Collision!");
     }
 
     void OnTriggerExit (Collider col)

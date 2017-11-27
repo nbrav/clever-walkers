@@ -1,10 +1,12 @@
 #define PORT 7890
-#define _VERBOSE_UDP false
+#define _VERBOSE_UDP true
 #define BUFSIZE 2048
 #define CLOCK_PRECISION 1E9
 
-//#define NARESH_IP "130.229.176.87"
+#define NARESH_IP "130.229.176.87" // enter your PC IP here
 #define THIS_IP "127.0.0.1" // use if running Brain & Unity in same system
+
+#define NUM_AGENTS 10
 
 #include <iostream>
 #include <cstdlib>
@@ -16,6 +18,7 @@
 #include <vector>
 #include <fstream>
 #include <time.h>
+#include <mpi.h>
 
 using namespace std;
 
@@ -23,9 +26,39 @@ using namespace std;
 
 int main(int argc, char **argv)
 {
-	/* create a UDP socket */
+	/* setting-up MPI */
 	
-        //struct sockaddr_in myaddr;	/* our address */
+	int _size, _rank;
+
+	MPI_Init(NULL, NULL);
+	MPI_Comm_size(MPI_COMM_WORLD, &_size);
+	MPI_Comm_rank(MPI_COMM_WORLD, &_rank);
+
+	if(_size!=NUM_AGENTS)
+	  std::
+	// Get the name of the processor
+	char processor_name[MPI_MAX_PROCESSOR_NAME];
+	int name_len;
+	MPI_Get_processor_name(processor_name, &name_len);
+
+	// Print off a hello world message
+	if(world_rank==0)
+	printf("Hello world from processor %s, rank %d"
+	       " out of %d processors\n",
+	       processor_name, world_rank, world_size);
+
+	// Finalize the MPI environment.
+	MPI_Finalize();
+
+	/* create (multi-)brain objects */
+	
+	qbrain brain;
+	int state=0, action=0, reward=0, timestep=0;
+	int text_in=0;
+	std::srand (time(NULL));
+
+	/* setting-up socket material*/
+	
 	struct sockaddr_in remaddr;	/* remote address */
 	socklen_t addrlen = sizeof(remaddr);		/* length of addresses */
 	int recvlen=-1;			/* # bytes received */
@@ -35,7 +68,8 @@ int main(int argc, char **argv)
 	int msgcnt = 0;			/* count # of messages we received */
 	char buf[BUFSIZE];	/* receive buffer */
 	
-        // creating socket
+        /* creating socket */
+	
 	if ((fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) 
 	{
 	  perror("cannot create socket\n");
@@ -51,16 +85,11 @@ int main(int argc, char **argv)
 	  fprintf(stderr, "inet_aton() failed\n");
 	  exit(1);
 	}
+
+	/* setting-up timer material */
 	
 	timespec t_send,t_recv;
 	bool first_exchange=false;
-	
-	/* create brain object */
-	
-	qbrain brain;
-	int state=0, action=0, reward=0, timestep=0;
-	int text_in=0;
-	std::srand (time(NULL));
 	
 	brain.reset();
 	
@@ -77,7 +106,7 @@ int main(int argc, char **argv)
 
           if(_VERBOSE_UDP) printf("-> (\"%s\")", buf); fflush(stdout);
 
-	  // receive state,reward[TODO]
+	  // receive state,reward [TODO]
 	  recvlen = recvfrom(fd, buf, BUFSIZE, 0, (struct sockaddr *)&remaddr, &addrlen);
 	  clock_gettime(CLOCK_REALTIME, &t_recv);
 
@@ -85,7 +114,8 @@ int main(int argc, char **argv)
 	  {
 	    buf[recvlen] = 0;
 	    text_in = atoi(buf);
-	    state = abs(text_in); reward = (text_in>=0)?0:-1;
+	    state = abs(text_in); 
+	    reward = (text_in>=0)?0:-1;
 	    if(_VERBOSE_UDP) printf("\n (\"%d\",\"%d\") -> [BRAIN] ", state, reward);
 	  }
 	  else

@@ -4,8 +4,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Text;
 using System.IO;
-using System.Net;
-using System.Net.Sockets;
 using System.Threading;
 using System;
 			      
@@ -13,11 +11,11 @@ public class QAgent : MonoBehaviour
 {
     private static double DEG_TO_RAD = System.Math.PI/180.0f;
 
-    float[] radius_annulus = new float[] {10.0f, 20.0f};
-    int[] angle_sector = new int[] {-45,-15,15,45,315};
+    float[] radius_annulus = new float[] {5.0f,10.0f,15.0f,20.0f};
+    int[] angle_sector = new int[] {-105,-95,-85,-75,-65,-55,-45,-35,-25,-15,-5,5,15,25,35,45,55,65,75,85,95,105,255};
   
     float[,] state_array;
-    int action=0;
+    int _action=7;
     int reward = 0;
 		  
     private string[] ray_colour_code = new string[] {"ANNULUS_COLOUR", "SECTOR_COLOUR"};
@@ -38,22 +36,10 @@ public class QAgent : MonoBehaviour
     int frame_rate = 30;
     float time_scale = 1.0F; // TODO: get from PopulateScene
     float time_per_update = 1.0F; //in sec
-    float trial_duration = 10.0F;
-    int trial_elasped=0; //in sec
   
-    /* UDP socket and channel set-up */
-
-    public Socket socket = null;
-    private string IP;  // define in init
-    string strMessage="";
-
-    string THIS_IP = "127.0.0.1";
-    string BESKOW_IP = "193.11.167.133";
-    int PORT = 7890;
-
     /* constants that you don't have to care about */
     float AGENT_HEIGHT = 3.0f; // to set-up raycast visuals 
-    int RAYCAST_INTERVAL = 10;  
+    int RAYCAST_INTERVAL = 5;  
   
     // Set rate
     void Awake()
@@ -67,13 +53,7 @@ public class QAgent : MonoBehaviour
     void Start()
     {
       QualitySettings.vSyncCount = 0;
-      
-      /* UDP set-up */
-
-      socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-      IPEndPoint brain_EP = new IPEndPoint(IPAddress.Any, PORT);
-      socket.Bind(brain_EP);
-      
+            
       /* agent-env set-up */
       
       state_array = new float[angle_sector.Length-1,radius_annulus.Length];
@@ -104,11 +84,10 @@ public class QAgent : MonoBehaviour
 	}
 	else
 	{
-	  int actionSelected = action;
-	  float turning_speed = action_to_angle(action)/time_per_update;
-	  
-	  gameObject.transform.Rotate(new Vector3(0, turning_speed, 0) * Time.deltaTime);
 	  gameObject.transform.position += gameObject.transform.forward * (speed_default * Time.deltaTime);
+
+	  float turning_speed = action_to_angle(action)/time_per_update;	  
+	  gameObject.transform.Rotate(new Vector3(0, turning_speed, 0) * Time.deltaTime);
 	}
     }
 
@@ -122,8 +101,8 @@ public class QAgent : MonoBehaviour
       Application.targetFrameRate = frame_rate;
       Time.timeScale = time_scale;
 
-      if(action>=0 && action<8)
-	do_action(action, 1.5f);
+      if(_action>=0 && _action<8)
+	do_action(_action, 1.5f);
       else
       {
 	Debug.Log("Update Error: invalid action range..");
@@ -132,65 +111,38 @@ public class QAgent : MonoBehaviour
     }
   
     void FixedUpdate()
-    {      
-      FixedUpdateIndex++;
-
-      if(FixedUpdateIndex%1000==0)
-	Debug.Log(FixedUpdateIndex.ToString());
-      
-      // check for active UDP queue
-      if(socket.Available<=0)
-      {	
-	//Debug.Log("FixedUpdate Error: UDP connection unavailabe!");
-	action = 7;
-	return;	
-      }
-
-      // check for reset 
-      if(Time.fixedTime>=trial_duration*trial_elasped)
-      {
-	trial_elasped++;
-	reset();
-      }
-
-      // execute brain update
-      try
-      {
-	// receiving action commands
-	IPEndPoint sender = new IPEndPoint(IPAddress.Any, 0);
-	EndPoint Remote = (EndPoint)(sender);
-	
-	byte[] data_in = new byte[256];;
-	socket.ReceiveFrom(data_in,256,0,ref Remote);
-	string text = Encoding.UTF8.GetString(data_in);
-	action = int.Parse(text);
-	
-	// sending state+reward data
-	int state_reward = get_state();
-	if(get_reward()==-1)  state_reward = -state_reward;
-	  
-	byte[] data_out = Encoding.UTF8.GetBytes(state_reward.ToString());
-	socket.SendTo(data_out,SocketFlags.None,Remote);
-      }
-      catch (Exception err)
-      {
-	Debug.Log(err.ToString()+" FixedUpdate unknown error: not receiving brain signal..");
-	action = 7;
-      }
-      
+    {
+      // Visualize action vectors
       //Vector3 ray_origin = AGENT_HEIGHT*Vector3.up + transform.position; 
       //Vector3 ray_vector = Quaternion.AngleAxis(action_to_angle(action), Vector3.up) * transform.forward;
-      //Debug.DrawRay(ray_origin, ray_vector * 2, Color.green); 
+      //Debug.DrawRay(ray_origin, ray_vector * 2, Color.green);
     }
 
-    void reset()
+    
+    public int get_udp()
     {
-      Quaternion IntelligentAgentRotation = Quaternion.Euler(0, 0, 0);
-      Vector3 IntelligentAgentPosition = new Vector3(-140.0f, 0.0f, 215.0f);	
+      int udp_out = get_state(); //get state from QAgent
+      if(get_reward()==-1)  udp_out = -udp_out;
+      return udp_out;      
+    }
 
-      transform.position = IntelligentAgentPosition;
-      transform.rotation = IntelligentAgentRotation;          
-      //Debug.Log("Reset!");
+    public void set_udp(int action)
+    {
+      _action = action;      
+    }
+
+    public void reset()
+    {
+      float rand_pos_x = -140.0f + UnityEngine.Random.Range(-20,20);
+      float rand_pos_y = 0.0f;
+      float rand_pos_z = 215.0f + UnityEngine.Random.Range(-20,20);
+
+      float rand_theta_x = 0.0f;
+      float rand_theta_y = UnityEngine.Random.Range(0,360);
+      float rand_theta_z = 0.0f;
+
+      transform.position = new Vector3(rand_pos_x,rand_pos_y,rand_pos_z);
+      transform.rotation = Quaternion.Euler(rand_theta_x,rand_theta_y,rand_theta_z);
     }
 
     /* --------------------- 
@@ -214,37 +166,22 @@ public class QAgent : MonoBehaviour
 	Vector3 ray_origin = AGENT_HEIGHT*Vector3.up + transform.position; // set origin of ray near the eye of agent
 	Vector3 ray_vector = Quaternion.AngleAxis(ray_angle, Vector3.up) * transform.forward; //set ray vector with iterant angle
 	hits = Physics.RaycastAll(ray_origin, ray_vector, ray_length); //find raycast hit	
-
 	//Debug.DrawRay(ray_origin, ray_vector * ray_length, Color.green); // paint all rays green
 	
 	// each hit of a ray
 	for (int i=0; i<hits.Length; i++)
 	{	    
 	  RaycastHit hit = hits[i];
-
-	  // TODO: make a distance_to_annulus function
-	  if(hit.distance < radius_annulus[0]) //inner annulus
-	  {
-	    state_array[angle_to_sector(ray_angle),0] = 1.0f;
-	    //Debug.DrawRay(ray_origin, ray_vector * ray_length, Color.red); // paint all nearer hit rays orange
-	    //Debug.Log("("+ray_angle+","+hit.distance.ToString()+") -> ("+angle_to_sector(ray_angle).ToString()+",0)");
-
-	  }
-	  else //outer annulus
-	  {
-	    state_array[angle_to_sector(ray_angle),1] = 1.0f;
-	    //Debug.DrawRay(ray_origin, ray_vector * ray_length, Color.yellow); // paint all hit rays orange	  
-	    //Debug.Log("("+ray_angle+","+hit.distance.ToString()+") -> ("+angle_to_sector(ray_angle).ToString()+",1)");
-	  }    
+	  state_array[angle_to_sector(ray_angle),distance_to_annulus(hit.distance)] = 1.0f;
 	}
       }
     }
 
     /* --------------------
        convert sensory state matrix to coded state:
-       TODO: name this style
+       TODO: add appropriate name
     --------------------- */
-    int code_state_halit()
+    int code_state_combinatoric_sectorized()
     {
       // TODO: complete for new multi-dimensional state_array
       float state = 0;
@@ -258,9 +195,9 @@ public class QAgent : MonoBehaviour
 
     /* --------------------
        convert sensory state matrix to coded state:
-       distributed: 
+       combinatoric: all combinations of sensor grid 
     --------------------- */
-    int code_state()
+    int code_state_combinatoric()
     {
       float state = 0;
       int unit_tracker = 0;
@@ -268,6 +205,35 @@ public class QAgent : MonoBehaviour
 	for(int annulus=0; annulus<radius_annulus.Length; annulus++)
 	  state += state_array[sector,annulus] * Mathf.Pow(2,unit_tracker++);
       return (int)state;
+    }
+
+    /* --------------------
+       convert sensory state matrix to coded state:
+       nearest-winner
+    --------------------- */
+    int code_state()
+    {
+      for(int annulus=0; annulus<radius_annulus.Length; annulus++)
+      {
+	System.Random rand = new System.Random();
+	List<int> closest_sectors = new List<int>();
+	
+	for(int sector=0; sector<angle_sector.Length-1; sector++)
+	{
+	  if(state_array[sector,annulus] == 1.0f)
+	  {
+	    closest_sectors.Add(sector);
+	  }
+	}
+
+	if(!closest_sectors.Count.Equals(0))
+	{
+	  int index = rand.Next(closest_sectors.Count);
+	  //Debug.Log("("+closest_sectors[index].ToString()+","+annulus.ToString()+")");	  
+	  return closest_sectors[index]+annulus*(angle_sector.Length-1);
+	}
+      }
+      return (int)0;
     }
 
     /* --------------------
@@ -285,7 +251,7 @@ public class QAgent : MonoBehaviour
     void OnTriggerEnter (Collider col)
     {
       reward = -1;
-      //Debug.Log("Collision!");
+      Debug.Log("Collision!");
     }
 
     void OnTriggerExit (Collider col)
@@ -302,7 +268,7 @@ public class QAgent : MonoBehaviour
     /* utilities: ray angle to sector index */
     int angle_to_sector(int angle)
     {
-      // angle_sector = {-45,-15,15,45,405};
+      // angle_sector = new int[] {-105,-95,-85,-75,-65,-55,-45,-35,-25,-15,-5,5,15,25,35,45,55,65,75,85,95,105,255};
 
       for(int sector = 0; sector < angle_sector.Length-1; sector++)
       {
@@ -311,17 +277,30 @@ public class QAgent : MonoBehaviour
       }
       return 0;
     }
-  
+
+    /* utilities: ray angle to sector index */
+    int distance_to_annulus(float dist)
+    {
+      // radius_annulus = new float[] {5.0f,10.0f,15.0f,20.0f};
+
+      for(int annulus = 0; annulus < radius_annulus.Length; annulus++)
+      {
+	if (dist <= radius_annulus[annulus])
+	  return annulus;
+      }
+      return -1;
+    }
+
     /* utilities: get angle from action coding */
     float action_to_angle(int actionIndex)
     {
-        if (actionIndex == 0)                 return -45.0f;
-        else if (actionIndex == 1)            return -30.0f;
-        else if (actionIndex == 2)            return -15.0f;
+        if (actionIndex == 0)                 return -90.0f;
+        else if (actionIndex == 1)            return -60.0f;
+        else if (actionIndex == 2)            return -30.0f;
         else if (actionIndex == 3)            return 0.0f;
-        else if (actionIndex == 4)            return 15.0f;
-        else if (actionIndex == 5)            return 30.0f;
-        else if (actionIndex == 6)            return 45.0f;
+        else if (actionIndex == 4)            return 30.0f;
+        else if (actionIndex == 5)            return 60.0f;
+        else if (actionIndex == 6)            return 90.0f;
 	else return -1.0f;
     }
 }

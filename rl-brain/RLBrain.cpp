@@ -115,7 +115,7 @@ class qbrain
 
   void parse_param()
   {
-    _state_size = 256; //TODO: Must use a param file     
+    _state_size = 88; //TODO: Must use a param file     
     _action_size = 8;  //TODO: Must use a param file     
     _reward_size = 1; //TODO : Must use a param file     
     
