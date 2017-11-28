@@ -11,13 +11,27 @@ Requirements:
 
 ----------------------------------------------------------------------------
 
-Running the brain: rl-brain directory includes scripts to run the brain network.
+Running Unity: 'unity_project/' directory includes scripts need for Unity.
 
-1. Compile the EmptyBrain.cpp file, execute after playing Unity simulation.
+1. When inside Unity, run a Object with PopulateScene.cs script. It will generate (multiple) agents, running on QAgent.cs and ZombieAgent.cs scripts, and create a UDP server to listen for the brain.
+
+----------------------------------------------------------------------------
+
+Running the brain on Personal Computer: rl-brain directory includes scripts to run the brain network.
+
+1. Compile the EmptyBrain.cpp file like:
+
+> mpic++ -std=c++11 -o EmptyBrain EmptyBrain.cpp
+
+2. Execute (after playing Unity) with 10 being <num_agents> same as number of (intelligent) agents in Unity.
+
+> mpirun -np 10 ./EmptyBrain
+
+----------------------------------------------------------------------------
 
 Running the brain on PDC: rl-brain has all the scripts
 
-1. Login to Beskow PDC, using kinit and ssh.
+1. Login to Beskow PDC, using kinit and ssh, as usual.
 
 2. Copy files to the directory in your klemming file system: 
 
@@ -25,17 +39,19 @@ Running the brain on PDC: rl-brain has all the scripts
 
 where <username> is your PDC username and <u> is its first letter
 
-3. Compile as CC -o EmptyBrain EmptyBrain.cpp
+3. Change the macro-defintion in EmptyBrain.cpp to the IP where Unity is running. 
 
-4. Get a node as: salloc --nodes=1 -t 0:10:00 -A <alloc_name>
+4. Switch to GNU compiler and compile with c++11 like:
+
+> module swap PrgEnv-cray PrgEnv-gnu
+> CC -std=c++11 -o EmptyBrain EmptyBrain.cpp
+
+5. Get a node for ~1 hour:
+
+> salloc --nodes=1 -t 1:00:00 -A <alloc_name>
 
 where <alloc_name> is your allocation name. You can find it by projinfo command.
 
-5. Run the executable as
+6. Run the executable with 10 being <num_agents> same as number of (intelligent) agents in Unity.
 
-> aprun -n 1 ./EmptyBrain
-
-Running Unity: unity_project directory includes scripts need for Unity.
-
-1. When inside Unity, run a Object with PopulateScene.cs script. It will generate (multiple) agents, running on QAgent.cs and ZombieAgent.cs scripts.
-
+> aprun -n 10 ./EmptyBrain
