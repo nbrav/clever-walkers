@@ -23,6 +23,12 @@ public class PopulateScene : MonoBehaviour
     float LearningTimeScale = 5.0f;
 
     [SerializeField]
+    bool TurnOnSector = false;
+
+    [SerializeField]
+    bool TurnOnTriangleIndicator = false;
+
+    [SerializeField]
     GameObject ZombiePrefab;
 
     [SerializeField]
@@ -30,6 +36,8 @@ public class PopulateScene : MonoBehaviour
 
     [SerializeField]
     GameObject agentPrefab;
+
+
 
     GameObject[] agent;
 
@@ -141,8 +149,6 @@ public class PopulateScene : MonoBehaviour
         //clone.GetComponent<ZombieAgent>().setGoalObject(ZombieAgentPosition[0]);
         clone.GetComponent<ZombieAgent>().setDummyAgentPrefab(agentPrefab);
 
-	Rigidbody clone_body =  clone.AddComponent<Rigidbody>();
-	clone_body.useGravity = false;
 
 	if(Learning)
 	{
@@ -164,6 +170,20 @@ public class PopulateScene : MonoBehaviour
 
         clone.GetComponent<QAgent>().setDummyAgentPrefab(agentPrefab);
 	clone.GetComponent<QAgent>().reset();
+
+        if (!TurnOnSector)
+        {
+            clone.GetComponent<DrawSector>().enabled = false;
+        }
+
+        if (!TurnOnTriangleIndicator)
+        {
+            clone.GetComponent<QAgent>().turn_triangle_indicator(false);
+        }
+        else
+        {
+            clone.GetComponent<QAgent>().turn_triangle_indicator(true);
+        }
 
         if (Learning)
         {

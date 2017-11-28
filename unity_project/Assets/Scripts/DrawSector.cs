@@ -91,10 +91,12 @@ public class DrawSector : MonoBehaviour {
         }
         angleOfViews[angleOfViews.Length - 1] = (360.0f - (angle_sector[angle_sector.Length - 1]-angle_sector[0]))/2.0f;
         rotation_angle[angleOfViews.Length - 1] = 180.0f;
-        float startLength = 0.1f;
+        float startLength = 0.0f;
+        float startLengthCache = startLength;
+        //float radiusAccum = 0.0f;
 
         for (int i=0;i< radius_annulus.Length;i++) 
-        {       
+        {            
             for (int j = 0; j < angle_sector.Length; j++)
             {
                 m_Sectors[i, j] = new Sector(radius_annulus[i], angleOfViews[j], startLength);
@@ -135,7 +137,7 @@ public class DrawSector : MonoBehaviour {
                 sectorMesh.normals = sectorvNormals;
 
             }
-            startLength += radius_annulus[i];
+            startLength = startLengthCache + radius_annulus[i];
             
         }
 
@@ -235,7 +237,7 @@ public class DrawSector : MonoBehaviour {
                 //m_vVertices[index] = this.transform.position;
             }
 
-            cacheVertices[index+1] = this.transform.position + DrawVectorCurrent.normalized * FixedLenght;
+            cacheVertices[index+1] = startPosition + DrawVectorCurrent.normalized * FixedLenght;
             //m_vVertices[ index + 1 ].y  = this.transform.position.y;
 
             //Color color;
