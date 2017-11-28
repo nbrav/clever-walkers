@@ -11,7 +11,7 @@ using System;
 public class PopulateScene : MonoBehaviour
 {
     public int numOfZombies = 9;
-    public int numOfWalkers = 1;
+    public int numOfWalkers = 2;
   
     [SerializeField]
     bool Learning;
@@ -81,18 +81,20 @@ public class PopulateScene : MonoBehaviour
     void FixedUpdate()
     {
       FixedUpdateIndex++;
-
+      String logger = "";
+      
       if(agent.Length<numOfWalkers+numOfZombies)
 	return;
       
       if(FixedUpdateIndex%1000==0)
-	Debug.Log(FixedUpdateIndex.ToString());
+	Debug.Log(FixedUpdateIndex.ToString()+" updates and going strong..");
       
       // check for active UDP queue
       if(socket.Available<=0)
       {	
 	Debug.Log("PopulateScene FixedUpdate Error: UDP connection unavailabe!");
-	//action = 7;
+	for(int idx=0; idx<numOfWalkers; idx++)
+	  agent[idx].GetComponent<QAgent>().set_udp(7);
 	return;	
       }
 
@@ -110,26 +112,43 @@ public class PopulateScene : MonoBehaviour
 	// finding any client
 	IPEndPoint sender = new IPEndPoint(IPAddress.Any, 0);
 	EndPoint Remote = (EndPoint)(sender);
+
+	Debug.Log("Found client:"+sender.ToString());
 	
-	// receiving UDP; TODO: multi-agent
+	// receiving UDP
 	byte[] data_in = new byte[256];;
-	socket.ReceiveFrom(data_in,256,0,ref Remote);
-	string text = Encoding.UTF8.GetString(data_in);	
-	for(int i=0; i<numOfWalkers; i++)
-	  agent[i].GetComponent<QAgent>().set_udp(int.Parse(text));
+	socket.ReceiveFrom(data_in,numOfWalkers*sizeof(int),0,ref Remote);
+
+	logger += " A[";	
+	for(int idx=0; idx<numOfWalkers; idx++)
+	{
+	  int action = System.BitConverter.ToInt32(data_in, idx*sizeof(int));
+	  agent[idx].GetComponent<QAgent>().set_udp(action);
+	  logger += action.ToString()+",";
+	}
+	logger += "]";
 	
 	// sending UDP; TODO: for multi-agent
-	int udp_out_agent = 0;
-	for(int i=0; i<numOfWalkers; i++)
-	  udp_out_agent = agent[i].GetComponent<QAgent>().get_udp();	  
-	byte[] data_out = Encoding.UTF8.GetBytes(udp_out_agent.ToString());
-	socket.SendTo(data_out,SocketFlags.None,Remote);
+	byte[] data_out = new byte[sizeof(int)*numOfWalkers*2];
+	int[] data_out_int = new int[numOfWalkers*2];
+	int[] state_reward = new int[2];
+
+	logger += "S,R[";
+	for(int idx=0; idx<numOfWalkers; idx++)
+	{
+	  state_reward = agent[idx].GetComponent<QAgent>().get_udp();	  
+	  data_out_int[idx*2] = state_reward[0];
+	  data_out_int[idx*2+1] = state_reward[1];
+	  logger = logger + "(" + state_reward[0].ToString() + "," + state_reward[1].ToString() + "),";
+	}
+	Buffer.BlockCopy(data_out_int, 0, data_out, 0, data_out.Length);	
+	socket.SendTo(data_out, sizeof(int)*numOfWalkers*2, SocketFlags.None, Remote);
       }
       catch (Exception err)
       {
 	Debug.Log(err.ToString()+" FixedUpdate unknown error: not receiving brain signal..");
-        agent[0].GetComponent<QAgent>().set_udp(7);
       }
+      //Debug.Log(logger);
     }
 
     void createZombieAgent(int index)
@@ -164,6 +183,9 @@ public class PopulateScene : MonoBehaviour
 
         clone.GetComponent<QAgent>().setDummyAgentPrefab(agentPrefab);
 	clone.GetComponent<QAgent>().reset();
+
+	Rigidbody clone_body =  clone.AddComponent<Rigidbody>();
+	clone_body.useGravity = false;
 
         if (Learning)
         {

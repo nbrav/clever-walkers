@@ -5,6 +5,7 @@
 #include <time.h>
 #include <algorithm>
 #include <math.h>
+#include <string>
 #define PI 3.14159265
 
 using namespace std;
@@ -13,6 +14,7 @@ class qbrain
 {
  private:
   int _time;
+  int _rank;
   
   int _state, _state_prime;
   std::vector< float > _reward;
@@ -35,25 +37,33 @@ class qbrain
   FILE *qvalue_outfile;
   FILE *qvalue_infile; //TODO: do we need two files for reading and writing?
   FILE *reward_outfile;
+
+  char const *QVALUE_FILE, *REWARD_FILE;
   
  public:
 
   bool VERBOSE;
   
-  qbrain()
+  qbrain(int rank)
   {
-    parse_param();    
+    _rank = rank;
+    parse_param();
 
+    std::string QVALUE_STRING = "qvalue."+std::to_string(_rank)+".log";
+    QVALUE_FILE = QVALUE_STRING.c_str();
+
+    std::string REWARD_STRING = "reward-punishment."+std::to_string(_rank)+".log";
+    REWARD_FILE = REWARD_STRING.c_str();
+    
     float gaussian[] = {0,0.7,1.0,1.5,1.0,0.7,0,1.0};
 
-    std::ifstream fs("qvalue.log");
+    std::ifstream fs(QVALUE_FILE);
     if(fs.is_open())
     {
-      printf("\nReading Q-values from file.. ");
-      qvalue_infile = fopen("qvalue.log","rb");
+      // Read Q matrix from file
+      qvalue_infile = fopen(QVALUE_FILE,"rb");
       fseek(qvalue_infile, -sizeof(float)*_reward_size*_state_size*_action_size, SEEK_END);
 
-      printf(" Here");
       _qvalue.resize(_reward_size);
       for (int reward_idx=0; reward_idx<_reward_size; reward_idx++)
       {
@@ -68,7 +78,6 @@ class qbrain
     }
     else
     {
-      printf("\nInitializing Q-values..");
       // Initialize Q matrix
       _qvalue.resize(_reward_size);
       for (int reward_idx=0; reward_idx<_reward_size; reward_idx++)
@@ -106,10 +115,10 @@ class qbrain
     _rpe.resize(_reward_size);
     std::fill(_rpe.begin(), _rpe.end(), 1.0);
 
-    qvalue_outfile = fopen("qvalue.log", "ab");
+    qvalue_outfile = fopen(QVALUE_FILE, "ab");
     fclose(qvalue_outfile);
 
-    reward_outfile = fopen("reward-punishment.log", "ab");
+    reward_outfile = fopen(REWARD_FILE, "ab");
     fclose(reward_outfile);
   }
 
@@ -144,14 +153,14 @@ class qbrain
   
   void reward_log()
   {
-    reward_outfile = fopen("reward-punishment.log", "ab"); //ab
+    reward_outfile = fopen(REWARD_FILE, "ab"); //ab
     fwrite(&_reward[0], sizeof(float) , _reward_size, reward_outfile);
     fclose(reward_outfile);    
   }
 
   void qvalue_log()
   {
-    qvalue_outfile = fopen("qvalue.log", "ab"); // overwrite every EPOCHs
+    qvalue_outfile = fopen(QVALUE_FILE, "ab"); // overwrite every EPOCHs
     for (int reward_idx=0; reward_idx<_reward_size; reward_idx++)
       for (int state_idx=0; state_idx<_state_size; state_idx++)
 	fwrite(&_qvalue[reward_idx][state_idx][0], sizeof(float) , _action_size, qvalue_outfile);
@@ -218,7 +227,6 @@ class qbrain
     update_etrace();
     update_qvalue();
    
-    //if(time!= 0 && time%1000==0)
     if(time%1000==0)
       qvalue_log();
     

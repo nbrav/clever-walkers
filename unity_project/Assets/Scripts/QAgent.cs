@@ -122,12 +122,12 @@ public class QAgent : MonoBehaviour
       //Vector3 ray_vector = Quaternion.AngleAxis(action_to_angle(action), Vector3.up) * transform.forward;
       //Debug.DrawRay(ray_origin, ray_vector * 2, Color.green);
     }
-
     
-    public int get_udp()
+    public int[] get_udp()
     {
-      int udp_out = get_state(); //get state from QAgent
-      if(get_reward()==-1)  udp_out = -udp_out;
+      int[] udp_out = new int[2];
+      udp_out[0] = get_state(); //get state from QAgent
+      udp_out[1] = get_reward();
       return udp_out;      
     }
 
@@ -219,7 +219,7 @@ public class QAgent : MonoBehaviour
 
     /* --------------------
        convert sensory state matrix to coded state:
-       TODO: add appropriate name
+       DEPRECATED; TODO: add appropriate name
     --------------------- */
     int code_state_combinatoric_sectorized()
     {
@@ -235,7 +235,7 @@ public class QAgent : MonoBehaviour
 
     /* --------------------
        convert sensory state matrix to coded state:
-       combinatoric: all combinations of sensor grid 
+       DEPRECATED; combinatoric: all combinations of sensor grid 
     --------------------- */
     int code_state_combinatoric()
     {
