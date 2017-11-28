@@ -11,14 +11,20 @@ using System;
 
 public class QAgent : MonoBehaviour
 {
+    bool turnOnTriangleIndicator;
+
     private static double DEG_TO_RAD = System.Math.PI / 180.0f;
 
     float[] radius_annulus = new float[] {5.0f,10.0f,15.0f,20.0f};
+    //float[] radius_annulus = new float[] { 5.0f, 10.0f, 20.0f };
     int[] angle_sector = new int[] {-105,-95,-85,-75,-65,-55,-45,-35,-25,-15,-5,5,15,25,35,45,55,65,75,85,95,105,255};
 
     // Color of Sector setup
     List<Vector2> colorList = new List<Vector2>();
     float[] color_angle_sector = new float[] {-105,-95,-85,-75,-65,-55,-45,-35,-25,-15,-5,5,15,25,35,45,55,65,75,85,95,105};
+
+    // Indicator of collision
+    ShowCollision show_collision;
 
     float[,] state_array;
     int _action=7;
@@ -63,6 +69,19 @@ public class QAgent : MonoBehaviour
       
       state_array = new float[angle_sector.Length-1,radius_annulus.Length];
       start_position = transform.position;
+        
+
+        //show_collision = this.gameObject.GetComponent<Canvas>().GetComponent<ShowCollision>();
+        Transform[] trans = this.gameObject.GetComponentsInChildren<Transform>(true);
+        foreach (Transform t in trans)
+        {
+            if (t.name == "Canvas")
+            {
+                show_collision = t.GetComponent<ShowCollision>();
+            }
+        }
+
+        
     }
 
     public void setTimeScale(float global_time_scale)
@@ -297,11 +316,21 @@ public class QAgent : MonoBehaviour
     void OnTriggerEnter(Collider col)
     {
       reward = -1;
+        if (turnOnTriangleIndicator)
+        {
+            show_collision.TriggerIndicator();
+        }
+        
       Debug.Log("Collision!");
     }
 
     void OnTriggerExit(Collider col)
     {
+        if (turnOnTriangleIndicator)
+        {
+            show_collision.UntriggerIndicator();
+        }
+        
         reward = 0;
     }
 
@@ -348,5 +377,10 @@ public class QAgent : MonoBehaviour
         else if (actionIndex == 5)            return 60.0f;
         else if (actionIndex == 6)            return 90.0f;
 	else return -1.0f;
+    }
+
+    public void turn_triangle_indicator(bool flag)
+    {
+        turnOnTriangleIndicator = flag;
     }
 }
