@@ -36,7 +36,6 @@ public class ZombieAgent : MonoBehaviour
   
     int frame_rate = 30;
     float time_scale = 1.0F;
-    float time_per_update = 1.0F; //in sec
     float trial_duration = 20.0F;
     int trial_elasped=0; //in sec
   
@@ -54,7 +53,6 @@ public class ZombieAgent : MonoBehaviour
     void Awake()
     {
       Application.targetFrameRate = frame_rate;
-      Time.fixedDeltaTime = time_per_update;
       Screen.fullScreen = true;
     }
   

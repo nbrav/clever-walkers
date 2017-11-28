@@ -129,7 +129,7 @@ class qbrain
     _reward_size = 1; //TODO : Must use a param file     
     
     _alpha = 0.1;
-    _epsilon = 0.7; 
+    _epsilon = 0.95; 
     _lambda = 0.8;
     
     _gamma.resize(_reward_size);

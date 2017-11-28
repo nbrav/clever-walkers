@@ -41,7 +41,7 @@ public class QAgent : MonoBehaviour
 
     int frame_rate = 30;
     float time_scale = 1.0F; // TODO: get from PopulateScene
-    float time_per_update = 1.0F; //in sec
+    float time_per_update;
   
     /* constants that you don't have to care about */
     float AGENT_HEIGHT = 3.0f; // to set-up raycast visuals 
@@ -51,7 +51,6 @@ public class QAgent : MonoBehaviour
     void Awake()
     {
         Application.targetFrameRate = frame_rate;
-        Time.fixedDeltaTime = time_per_update;
         Screen.fullScreen = true;
     }
 
@@ -69,6 +68,11 @@ public class QAgent : MonoBehaviour
     public void setTimeScale(float global_time_scale)
     {
         time_scale = global_time_scale;
+    }
+
+    public void setTimePerUpdate(float global_time_per_update)
+    {
+        time_per_update = global_time_per_update;
     }
 
     public void setGoalObject(Vector3 newGoalObj)
@@ -91,9 +95,6 @@ public class QAgent : MonoBehaviour
 	else
 	{
 	  gameObject.transform.position += gameObject.transform.forward * (speed_default * Time.deltaTime);
-
-	  float turning_speed = action_to_angle(action)/time_per_update;	  
-	  gameObject.transform.Rotate(new Vector3(0, turning_speed, 0) * Time.deltaTime);
 	}
     }
 
@@ -118,9 +119,13 @@ public class QAgent : MonoBehaviour
     void FixedUpdate()
     {
       // Visualize action vectors
-      //Vector3 ray_origin = AGENT_HEIGHT*Vector3.up + transform.position; 
-      //Vector3 ray_vector = Quaternion.AngleAxis(action_to_angle(action), Vector3.up) * transform.forward;
-      //Debug.DrawRay(ray_origin, ray_vector * 2, Color.green);
+      Vector3 ray_origin = AGENT_HEIGHT*Vector3.up + transform.position; 
+      Vector3 ray_vector = Quaternion.AngleAxis(action_to_angle(_action), Vector3.up) * transform.forward;
+      Debug.DrawRay(ray_origin, ray_vector * 2, Color.green);
+
+      //float turning_speed = 0.01f*action_to_angle(action)/time_per_update;	  
+      //gameObject.transform.Rotate(new Vector3(0, turning_speed, 0) * Time.deltaTime);
+      gameObject.transform.Rotate(new Vector3(0, time_per_update*action_to_angle(_action), 0));
     }
     
     public int[] get_udp()

@@ -11,7 +11,7 @@ plt.close('all')
 BIN_SIZE = 200;
 
 # reward/punishment values
-reward = np.fromfile("reward-punishment.log",np.float32)
+reward = np.fromfile("reward-punishment.0.log",np.float32)
 
 print "Agent-Environment updates=",reward.shape
 

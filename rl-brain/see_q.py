@@ -6,8 +6,10 @@ import math
 
 plt.close('all')
 
+agent = 0;
+
 # Q-value
-qtable = np.fromfile("qvalue.log",np.float32)
+qtable = np.fromfile("qvalue."+str(agent)+".log",np.float32)
 
 if(os.path.isfile("qvalue.log")==False):
     print "Run the brain first..."
@@ -54,6 +56,6 @@ plt.imshow(Q[T-1,S,:])
 plt.title(str((T-1)*100)+"s")
 plt.clim(np.min(Q),np.max(Q))
 
-plt.suptitle("Q-values (learning)")
+plt.suptitle("Q-values (learning) agent:"+str(agent))
 plt.colorbar()
 #plt.show()

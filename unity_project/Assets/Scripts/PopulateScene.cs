@@ -44,7 +44,7 @@ public class PopulateScene : MonoBehaviour
     float trial_duration = 20.0F;
     int frame_rate = 30;
     float time_scale = 1.0F; 
-    float time_per_update = 1.0F; //in sec
+    float time_per_update = 0.8F; //in sec
     
     /* UDP socket and channel set-up */
 
@@ -160,8 +160,8 @@ public class PopulateScene : MonoBehaviour
         //clone.GetComponent<ZombieAgent>().setGoalObject(ZombieAgentPosition[0]);
         clone.GetComponent<ZombieAgent>().setDummyAgentPrefab(agentPrefab);
 
-	Rigidbody clone_body =  clone.AddComponent<Rigidbody>();
-	clone_body.useGravity = false;
+	//Rigidbody clone_body =  clone.AddComponent<Rigidbody>();
+	//clone_body.useGravity = false;
 
 	if(Learning)
 	{
@@ -184,8 +184,9 @@ public class PopulateScene : MonoBehaviour
         clone.GetComponent<QAgent>().setDummyAgentPrefab(agentPrefab);
 	clone.GetComponent<QAgent>().reset();
 
-	Rigidbody clone_body =  clone.AddComponent<Rigidbody>();
-	clone_body.useGravity = false;
+	//Rigidbody clone_body =  clone.AddComponent<Rigidbody>();
+	//clone_body.useGravity = false;
+	clone.GetComponent<QAgent>().setTimePerUpdate(time_per_update);
 
         if (Learning)
         {

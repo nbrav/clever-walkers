@@ -95,6 +95,7 @@ int main(int argc, char **argv)
 	if(_master)
 	  printf("\nGearing up \"%s\" system for %d rl-brain", processor_name, _size);
 
+	// master loop
 	for (;;)
 	{
 	  if(!_rank && msgcnt%1000==0)
@@ -107,7 +108,7 @@ int main(int argc, char **argv)
 	  {
 	    if (sendto(fd, action_global, sizeof(int)*NUM_AGENTS, 0, (struct sockaddr *)&remaddr, addrlen) < 0)
 	      perror("sendto");
-
+	    
 	    if(_VERBOSE_UDP)
 	    {
 	      printf("->(");
@@ -132,12 +133,20 @@ int main(int argc, char **argv)
 
 	  state = (sr_local[0]);
 	  reward = (sr_local[1]);
+
+	  // hijack s-r relation
+	  //if(state < 11 && action<4)
+	  //reward = -1;
+	  //else if(state > 11 && state<22 && action>4)
+	  //reward = -1;
+	  //else
+	  //reward = 0;
 	  
 	  if(_master && _VERBOSE_UDP)
 	  {
 	    printf("\n(");
 	    for(int _r=0; _r<NUM_AGENTS; _r++)
-	      printf("[%d,%d]", sr_global[_r*2],sr_global[_r*2+1]);
+	      printf("[%d,%d]", state,reward);
 	    printf(")->[brain]");
 	  }
 	  fflush(stdout);
