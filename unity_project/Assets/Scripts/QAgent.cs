@@ -144,7 +144,7 @@ public class QAgent : MonoBehaviour
 
       //float turning_speed = 0.01f*action_to_angle(action)/time_per_update;	  
       //gameObject.transform.Rotate(new Vector3(0, turning_speed, 0) * Time.deltaTime);
-      gameObject.transform.Rotate(new Vector3(0, time_per_update*action_to_angle(_action), 0));
+      gameObject.transform.Rotate(new Vector3(0, action_to_angle(_action), 0));
     }
     
     public int[] get_udp()

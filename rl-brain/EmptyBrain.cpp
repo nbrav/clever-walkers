@@ -3,10 +3,8 @@
 #define BUFSIZE 2048
 #define CLOCK_PRECISION 1E9
 
-#define NARESH_IP "130.229.176.87" // enter your PC IP here
+#define UNITY_IP "0.0.0.0" // enter your PC IP here
 #define THIS_IP "127.0.0.1" // use if running Brain & Unity in same system
-
-#define NUM_AGENTS 10
 
 #include <iostream>
 #include <cstdlib>
@@ -33,6 +31,8 @@ int main(int argc, char **argv)
 	MPI_Init(NULL, NULL);
 	MPI_Comm_size(MPI_COMM_WORLD, &_size);
 	MPI_Comm_rank(MPI_COMM_WORLD, &_rank);
+
+        int NUM_AGENTS = _size;
 
 	if(_size!=NUM_AGENTS)
 	  perror("agents!=cores");
@@ -86,20 +86,28 @@ int main(int argc, char **argv)
 
 	/* setting-up timer material */
 	
-	timespec t_send,t_recv;
-	bool first_exchange=false;
-	
+	double t1,t2;
+	float _latency;
+
 	brain.reset();
 
 	// print message
-	if(_master)
-	  printf("\nGearing up \"%s\" system for %d rl-brain", processor_name, _size);
+	//if(_master)
+	//printf("\nGearing up \"%s\" system for %d rl-brain", processor_name, _size);
 
 	// master loop
-	for (;;)
+	for (int i=0;i<=1000;i++)
 	{
-	  if(!_rank && msgcnt%1000==0)
-	    printf("\n%d updates and going strong..", msgcnt); 
+          t1 = MPI_Wtime();
+	  if(_master)
+	  {
+	    _latency = float(t1-t2);
+	    //printf("\n%f",_latency); 
+	    t2=t1;
+          }
+
+	  //if(!_rank && msgcnt%1000==0)
+	  //printf("\n%d updates and going strong..", msgcnt); 
 
           // send action                              
 	  MPI_Gather(&action, 1, MPI_INT, action_global, 1, MPI_INT, 0, MPI_COMM_WORLD);
@@ -109,7 +117,7 @@ int main(int argc, char **argv)
 	    if (sendto(fd, action_global, sizeof(int)*NUM_AGENTS, 0, (struct sockaddr *)&remaddr, addrlen) < 0)
 	      perror("sendto");
 	    
-	    if(_VERBOSE_UDP)
+	    if (_VERBOSE_UDP)
 	    {
 	      printf("->(");
 	      for(int _r=0; _r<NUM_AGENTS; _r++)
@@ -120,11 +128,10 @@ int main(int argc, char **argv)
 	  }
 
 	  // receive state,reward [TODO]
-	  if(_master)
+	  if (_master)
 	  {
 	    recvlen = recvfrom(fd, sr_global, sizeof(int)*NUM_AGENTS*2, 0, (struct sockaddr *)&remaddr, &addrlen);
-	    clock_gettime(CLOCK_REALTIME, &t_recv);
-	    
+	        
 	    if (recvlen<0)	    
 	      printf("Uh oh! Something horrible happened with the simulator\n");	  
 	  }
@@ -159,9 +166,7 @@ int main(int argc, char **argv)
 	  brain.set_state(state);
 	  action = brain.get_action();
 
-	  timestep++;
-	  
-	  clock_gettime(CLOCK_REALTIME, &t_send);	  
+	  timestep++;	  
 	}
 
 	MPI_Finalize();
