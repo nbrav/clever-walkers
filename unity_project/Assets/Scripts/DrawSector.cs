@@ -17,7 +17,7 @@ public class DrawSector : MonoBehaviour {
         public float m_fAngleRotation;
         public int m_iConeVisibilityPrecision = 20;
         public int m_iVertMax = 120;
-        public int m_iTrianglesMax = 120;
+        public int m_iTrianglesMax = 120;        
 
         public Sector(float length, float angle, float startDistance)
         {
@@ -36,6 +36,9 @@ public class DrawSector : MonoBehaviour {
     public Material m_matCollision = null;
     public Material m_matFree = null;
     public bool m_bHasStartDistance = true;
+    public float m_SmallerSectorRad = 0.2f;
+    public float m_SmallerSectorAng = 0.1f;
+
     private float m_fFixedCheckNextTime;
 
     /* Render Properties */
@@ -106,11 +109,11 @@ public class DrawSector : MonoBehaviour {
 
                 float fStartRadians = (360.0f - (angleOfViews[j])) * Mathf.Deg2Rad;
                 float fCurrentRadians = fStartRadians;
-                float fSpan = (angleOfViews[j]) / m_Sectors[i, j].m_iConeVisibilityPrecision * Mathf.Deg2Rad * 2.0f;
+                float fSpan = (angleOfViews[j] - 2*m_SmallerSectorAng) / m_Sectors[i, j].m_iConeVisibilityPrecision * Mathf.Deg2Rad * 2.0f;
                 //angleOfViews[j] *= 0.5f;
 
                 
-                m_Sectors[i, j].m_fStartRadians = fStartRadians;
+                m_Sectors[i, j].m_fStartRadians = fStartRadians + m_SmallerSectorAng;
                 m_Sectors[i, j].m_fCurrentRadians = fCurrentRadians;
                 m_Sectors[i, j].m_fSpan = fSpan;
                 m_Sectors[i, j].m_fAngleRotation = rotation_angle[j];
@@ -228,7 +231,7 @@ public class DrawSector : MonoBehaviour {
 
             if (m_bHasStartDistance)
             {
-                cacheVertices[index]= startPosition + DrawVectorCurrent.normalized * sector.m_vStartDistanceCone;
+                cacheVertices[index]= startPosition + DrawVectorCurrent.normalized * (sector.m_vStartDistanceCone+m_SmallerSectorRad);
                 //m_vVertices[index] = this.transform.position + DrawVectorCurrent.normalized * sector.m_vStartDistanceCone;
             }
             else
@@ -237,7 +240,7 @@ public class DrawSector : MonoBehaviour {
                 //m_vVertices[index] = this.transform.position;
             }
 
-            cacheVertices[index+1] = startPosition + DrawVectorCurrent.normalized * FixedLenght;
+            cacheVertices[index+1] = startPosition + DrawVectorCurrent.normalized * (FixedLenght-m_SmallerSectorRad);
             //m_vVertices[ index + 1 ].y  = this.transform.position.y;
 
             //Color color;
