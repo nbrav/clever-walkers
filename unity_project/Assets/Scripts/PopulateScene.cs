@@ -37,43 +37,57 @@ public class PopulateScene : MonoBehaviour
     [SerializeField]
     GameObject agentPrefab;
 
-
-
     GameObject[] agent;
 
     Vector3 IntelligentAgentPosition;
     Quaternion IntelligentAgentRotation;
     Vector3[] ZombieAgentPosition;
     Quaternion[] ZombieAgentRotation;
-
+				    
+    /* RL variables (experimental) */
+  
+    bool waiting_for_transition = false;
+    float[] reset_counter;
+  
     /* Episode variables */
+  
     int FixedUpdateIndex;
     int trial_elapsed=0;
-    float trial_duration = 20.0F;
     int frame_rate = 30;
     float time_scale = 1.0F; 
-    float time_per_update = 0.8F; //in sec
-    
-    /* UDP socket and channel set-up */
+    float trial_duration = 20.0F; //in sec
+    float time_per_update = 0.5F; //in sec
 
+    string tring;
+    string display_string;
+  
+    /* UDP socket and channel set-up */
+				
     public Socket socket = null;
     string THIS_IP = "127.0.0.1";
     string BESKOW_IP = "193.11.167.133";
     int PORT = 7890;
 
-    // Use this for initialization
-    void Start()
+    void Awake()
     {
-        Application.targetFrameRate = frame_rate;
-	Time.fixedDeltaTime = time_per_update;
-	
 	agent = new GameObject[numOfZombies+numOfWalkers];
 	
 	IntelligentAgentRotation = Quaternion.Euler(0, 240, 0);
 	IntelligentAgentPosition = new Vector3(-140.0f, 0.0f, 210.0f);	
 
         GenerateAgent();
+    }
+  
+    // Use this for initialization
+    void Start()
+    {
+        Application.targetFrameRate = frame_rate;
+	Time.fixedDeltaTime = time_per_update;
 
+	reset_counter = new float[numOfWalkers];
+	for(int i=0;i<numOfWalkers;i++)
+	  reset_counter[i]=0.0f;
+	
 	/* UDP set-up */
 
 	socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
@@ -89,7 +103,6 @@ public class PopulateScene : MonoBehaviour
     void FixedUpdate()
     {
       FixedUpdateIndex++;
-      String logger = "";
       
       if(agent.Length<numOfWalkers+numOfZombies)
 	return;
@@ -100,20 +113,27 @@ public class PopulateScene : MonoBehaviour
       // check for active UDP queue
       if(socket.Available<=0)
       {	
-	Debug.Log("PopulateScene FixedUpdate Error: UDP connection unavailabe!");
+	//Debug.Log("PopulateScene FixedUpdate Error: UDP connection unavailabe!");
+	display_string = "No UDPs!";
 	for(int idx=0; idx<numOfWalkers; idx++)
-	  agent[idx].GetComponent<QAgent>().set_udp(7);
+	  agent[idx].GetComponent<QAgent>().set_udp(-1);
 	return;	
       }
 
-      // check for reset 
-      if(Time.fixedTime>=trial_duration*trial_elapsed)
+      // check for reset
+      for(int idx=0; idx<numOfWalkers;idx++)
       {
-	trial_elapsed++;
-	for(int i=0; i<numOfWalkers;i++)
-	 agent[i].GetComponent<QAgent>().reset();
+	if(reset_counter[idx]>trial_duration)
+	{
+	  agent[idx].GetComponent<QAgent>().reset();
+	  reset_counter[idx]=0.0f;
+	}
+	else
+	{
+	  reset_counter[idx]+=Time.fixedDeltaTime;
+	}  
       }
-
+      
       // execute brain update
       try
       {
@@ -121,42 +141,42 @@ public class PopulateScene : MonoBehaviour
 	IPEndPoint sender = new IPEndPoint(IPAddress.Any, 0);
 	EndPoint Remote = (EndPoint)(sender);
 
-	Debug.Log("Found client:"+sender.ToString());
-	
-	// receiving UDP
+	// receive action
 	byte[] data_in = new byte[256];;
 	socket.ReceiveFrom(data_in,numOfWalkers*sizeof(int),0,ref Remote);
-
-	logger += " A[";	
+	
 	for(int idx=0; idx<numOfWalkers; idx++)
 	{
 	  int action = System.BitConverter.ToInt32(data_in, idx*sizeof(int));
 	  agent[idx].GetComponent<QAgent>().set_udp(action);
-	  logger += action.ToString()+",";
-	}
-	logger += "]";
+	  display_string = "A:"+action.ToString();
+	}	
 	
-	// sending UDP; TODO: for multi-agent
+	// sending state,reward
 	byte[] data_out = new byte[sizeof(int)*numOfWalkers*2];
 	int[] data_out_int = new int[numOfWalkers*2];
 	int[] state_reward = new int[2];
 
-	logger += "S,R[";
 	for(int idx=0; idx<numOfWalkers; idx++)
 	{
-	  state_reward = agent[idx].GetComponent<QAgent>().get_udp();	  
+	  state_reward = agent[idx].GetComponent<QAgent>().get_udp();
+
+	  display_string += "\nS:"+state_reward[0].ToString()+ "\nR:"+state_reward[1].ToString();;
+		
 	  data_out_int[idx*2] = state_reward[0];
 	  data_out_int[idx*2+1] = state_reward[1];
-	  logger = logger + "(" + state_reward[0].ToString() + "," + state_reward[1].ToString() + "),";
+
+	  if(state_reward[1]!=0.0f)
+	    reset_counter[idx]=trial_duration;
 	}
 	Buffer.BlockCopy(data_out_int, 0, data_out, 0, data_out.Length);	
-	socket.SendTo(data_out, sizeof(int)*numOfWalkers*2, SocketFlags.None, Remote);
+	socket.SendTo(data_out, sizeof(int)*numOfWalkers*2, SocketFlags.None, Remote);	  
       }
       catch (Exception err)
       {
 	Debug.Log(err.ToString()+" FixedUpdate unknown error: not receiving brain signal..");
       }
-      //Debug.Log(logger);
+      display_string += "\nTrial:"+trial_elapsed.ToString();
     }
 
     void createZombieAgent(int index)
@@ -165,7 +185,6 @@ public class PopulateScene : MonoBehaviour
 
         clone.GetComponent<ZombieAgent>().setSeed(index);
 	clone.GetComponent<ZombieAgent>().reset();
-        //clone.GetComponent<ZombieAgent>().setGoalObject(ZombieAgentPosition[0]);
         clone.GetComponent<ZombieAgent>().setDummyAgentPrefab(agentPrefab);
 
 	if(Learning)
@@ -186,8 +205,9 @@ public class PopulateScene : MonoBehaviour
     {
         GameObject clone = GameObject.Instantiate(HumanPrefab);
 
-        clone.GetComponent<QAgent>().setDummyAgentPrefab(agentPrefab);
 	clone.GetComponent<QAgent>().reset();
+        clone.GetComponent<QAgent>().setDummyAgentPrefab(agentPrefab);
+	clone.AddComponent<Rigidbody>();
 
         if (!TurnOnSector)
         {
@@ -211,6 +231,7 @@ public class PopulateScene : MonoBehaviour
         {
             clone.GetComponent<QAgent>().setTimeScale(1.0f);
         }
+	clone.GetComponent<QAgent>().setTimePerUpdate(time_per_update);
 
         if (AnimationOff) Destroy(clone.GetComponent<Animator>());
 
@@ -224,5 +245,10 @@ public class PopulateScene : MonoBehaviour
 	    createSmartAgent(i);
         for (;i<numOfWalkers+numOfZombies; i++)
 	    createZombieAgent(i);
+    }
+  
+    void OnGUI ()
+    {
+      tring = GUI.TextField (new Rect (50, 50, 60, 80), display_string);
     }
 }

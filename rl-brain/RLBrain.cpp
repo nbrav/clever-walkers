@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <math.h>
 #include <string>
+
 #define PI 3.14159265
 
 using namespace std;
@@ -35,10 +36,14 @@ class qbrain
   float _lambda;               // Eligibility decay
 
   FILE *qvalue_outfile;
-  FILE *qvalue_infile; //TODO: do we need two files for reading and writing?
+  FILE *qvalue_infile;
+  //TODO: do we need two files for reading and writing?
+  
+  FILE *state_outfile;
+  FILE *action_outfile;
   FILE *reward_outfile;
 
-  char const *QVALUE_FILE, *REWARD_FILE;
+  char const *QVALUE_FILE, *REWARD_FILE, *STATE_FILE, *ACTION_FILE;
   
  public:
 
@@ -52,10 +57,16 @@ class qbrain
     std::string QVALUE_STRING = "qvalue."+std::to_string(_rank)+".log";
     QVALUE_FILE = QVALUE_STRING.c_str();
 
+    std::string STATE_STRING = "state."+std::to_string(_rank)+".log";
+    STATE_FILE = STATE_STRING.c_str();
+
+    std::string ACTION_STRING = "action."+std::to_string(_rank)+".log";
+    ACTION_FILE = ACTION_STRING.c_str();
+
     std::string REWARD_STRING = "reward-punishment."+std::to_string(_rank)+".log";
     REWARD_FILE = REWARD_STRING.c_str();
     
-    float gaussian[] = {0,0.7,1.0,1.5,1.0,0.7,0,1.0};
+    float gaussian[] = {0.1,0.2,0.4,0.7,0.4,0.2,0.1,0.1};
 
     std::ifstream fs(QVALUE_FILE);
     if(fs.is_open())
@@ -88,7 +99,7 @@ class qbrain
 	  _qvalue[reward_idx][state_idx].resize(_action_size,1);
 	  for (int action_idx=0; action_idx<_action_size; action_idx++)
 	  {
-	    _qvalue[reward_idx][state_idx][action_idx] = gaussian[action_idx];
+	    _qvalue[reward_idx][state_idx][action_idx] = (float)rand()/RAND_MAX; //gaussian[action_idx]; //
 	  }
 	}
       }
@@ -118,23 +129,26 @@ class qbrain
     qvalue_outfile = fopen(QVALUE_FILE, "ab");
     fclose(qvalue_outfile);
 
+    state_outfile = fopen(STATE_FILE, "wb");
+    fclose(state_outfile);
+
     reward_outfile = fopen(REWARD_FILE, "ab");
     fclose(reward_outfile);
   }
 
   void parse_param()
   {
-    _state_size = 88; //TODO: Must use a param file     
+    _state_size = 100; //TODO: Must use a param file     
     _action_size = 8;  //TODO: Must use a param file     
     _reward_size = 1; //TODO : Must use a param file     
     
-    _alpha = 0.1;
-    _epsilon = 0.95; 
-    _lambda = 0.8;
+    _alpha = 0.1; // learning rate
+    _epsilon = 0.8; // epsilon-greedy WARNING: RANDOM ACTIONS!! 
+    _lambda = 0.0; // eligibility parameter 0.8
     
     _gamma.resize(_reward_size);
     for (int reward_idx=0; reward_idx<_reward_size; reward_idx++)
-      _gamma[reward_idx] = 0.9;
+      _gamma[reward_idx] = 0.8; // temporal-decay rate
   }
 
   void reset()
@@ -151,6 +165,20 @@ class qbrain
 
   /*---------- Logger -----------*/
   
+  void state_log()
+  {
+    state_outfile = fopen(STATE_FILE, "ab"); //ab
+    fwrite(&_state, sizeof(int), 1, state_outfile);
+    fclose(state_outfile);    
+  }
+
+  void action_log()
+  {
+    action_outfile = fopen(ACTION_FILE, "ab"); //ab
+    fwrite(&_action, sizeof(int), 1, action_outfile);
+    fclose(action_outfile);    
+  }
+
   void reward_log()
   {
     reward_outfile = fopen(REWARD_FILE, "ab"); //ab
@@ -178,6 +206,8 @@ class qbrain
       _action = greedy_action; 
     else // explore
       _action = rand()%_action_size;
+    
+    //_action = _state;     //WARNING! DEBUGGING!
   }
 
   void set_state(int state)
@@ -229,8 +259,16 @@ class qbrain
    
     if(time%1000==0)
       qvalue_log();
+
+    fflush(stdout);
     
     compute_action();
+
     reward_log();
+    state_log();
+    action_log();
+
+    //printf("\n BRAIN[%d,%d -> %f,%d]",
+    //	   _state,get_action(),_reward[0],_state_prime);
   }  
 };

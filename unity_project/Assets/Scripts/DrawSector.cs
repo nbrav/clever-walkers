@@ -246,7 +246,7 @@ public class DrawSector : MonoBehaviour {
             //else
             //    color = Color.yellow;
 
-            Debug.DrawLine(startPosition, cacheVertices[index + 1], Color.yellow);
+            //Debug.DrawLine(startPosition, cacheVertices[index + 1], Color.yellow);
             index += 2;
         }
 

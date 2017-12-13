@@ -115,7 +115,7 @@ public class ZombieAgent : MonoBehaviour
       Application.targetFrameRate = frame_rate;
       Time.timeScale = time_scale;
 
-      action = 3;
+      action = 7; //3;
       
       do_action(action, 1.5f);
     }
@@ -134,12 +134,12 @@ public class ZombieAgent : MonoBehaviour
   
     public void reset()
     {
-      float rand_pos_x = -140.0f + UnityEngine.Random.Range(-20,20);
+      float rand_pos_x = 0.0f + UnityEngine.Random.Range(-20,20); //- 8; 
       float rand_pos_y = 0.0f;
-      float rand_pos_z = 215.0f + UnityEngine.Random.Range(-20,20);
+      float rand_pos_z = 0.0f + UnityEngine.Random.Range(-20,20); //10.0f;
 
       float rand_theta_x = 0.0f;
-      float rand_theta_y = UnityEngine.Random.Range(0,360);
+      float rand_theta_y = 0.0f; //UnityEngine.Random.Range(0,360);
       float rand_theta_z = 0.0f;
 
       transform.position = new Vector3(rand_pos_x,rand_pos_y,rand_pos_z);

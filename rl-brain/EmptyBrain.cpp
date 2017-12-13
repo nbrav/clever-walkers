@@ -44,7 +44,7 @@ int main(int argc, char **argv)
 	/* create (multi-)brain objects */
 	
 	qbrain brain(_rank);
-	int state=0, action=0, reward=0, timestep=0;
+	int state=0, state_previous=-1, action=0, reward=0, timestep=0;
 	int sr_local[2];
 	
 	int32_t action_global[NUM_AGENTS], sr_global[NUM_AGENTS*2];
@@ -84,28 +84,15 @@ int main(int argc, char **argv)
 	  }
 	}
 
-	/* setting-up timer material */
-	
-	double t1,t2;
-	float _latency;
-
 	brain.reset();
 
 	// print message
-	//if(_master)
-	//printf("\nGearing up \"%s\" system for %d rl-brain", processor_name, _size);
+	if(_master)
+	  printf("\nGearing up \"%s\" system for %d rl-brain", processor_name, _size);
 
 	// master loop
-	for (int i=0;i<=1000;i++)
+	for (;;)
 	{
-          t1 = MPI_Wtime();
-	  if(_master)
-	  {
-	    _latency = float(t1-t2);
-	    //printf("\n%f",_latency); 
-	    t2=t1;
-          }
-
 	  //if(!_rank && msgcnt%1000==0)
 	  //printf("\n%d updates and going strong..", msgcnt); 
 
@@ -119,9 +106,8 @@ int main(int argc, char **argv)
 	    
 	    if (_VERBOSE_UDP)
 	    {
-	      printf("->(");
-	      for(int _r=0; _r<NUM_AGENTS; _r++)
-		printf("%d,", action_global[_r]);
+	      printf("\n(A:");
+	      for(int _r=0; _r<NUM_AGENTS; _r++) printf("%d,", action_global[_r]);
 	      printf(")");
 	    }
 	    fflush(stdout);
@@ -130,10 +116,8 @@ int main(int argc, char **argv)
 	  // receive state,reward [TODO]
 	  if (_master)
 	  {
-	    recvlen = recvfrom(fd, sr_global, sizeof(int)*NUM_AGENTS*2, 0, (struct sockaddr *)&remaddr, &addrlen);
-	        
-	    if (recvlen<0)	    
-	      printf("Uh oh! Something horrible happened with the simulator\n");	  
+	    recvlen = recvfrom(fd, sr_global, sizeof(int)*NUM_AGENTS*2, 0, (struct sockaddr *)&remaddr, &addrlen);	        
+	    if (recvlen<0) printf("Uh oh! Something horrible happened with the simulator\n");	  
 	  }
 
 	  MPI_Scatter(&sr_global, 2, MPI_INT, sr_local, 2, MPI_INT, 0, MPI_COMM_WORLD);
@@ -142,18 +126,17 @@ int main(int argc, char **argv)
 	  reward = (sr_local[1]);
 
 	  // hijack s-r relation
-	  //if(state < 11 && action<4)
-	  //reward = -1;
-	  //else if(state > 11 && state<22 && action>4)
-	  //reward = -1;
-	  //else
-	  //reward = 0;
+	  /*if(state < 11 && action<4)
+	    reward = -1;
+	  else if(state >= 11 && state<22 && action>4)
+	    reward = -1;
+	  else
+	  reward = 0;*/
 	  
 	  if(_master && _VERBOSE_UDP)
 	  {
-	    printf("\n(");
-	    for(int _r=0; _r<NUM_AGENTS; _r++)
-	      printf("[%d,%d]", state,reward);
+	    printf(" (");
+	    for(int _r=0; _r<NUM_AGENTS; _r++)  printf("[%d,%d]", state,reward);
 	    printf(")->[brain]");
 	  }
 	  fflush(stdout);
@@ -161,12 +144,15 @@ int main(int argc, char **argv)
 	  // simulate the "Brain"
 	  msgcnt++;
 
-	  brain.advance_timestep(state, reward, timestep);
-
-	  brain.set_state(state);
-	  action = brain.get_action();
-
-	  timestep++;	  
+	  //if(state_previous != state) // filter Markovian state
+	  {
+	    brain.advance_timestep(state, reward, timestep);
+	    
+	    brain.set_state(state);
+	    action = brain.get_action();
+	    timestep++;
+	    state_previous=state;
+	  }
 	}
 
 	MPI_Finalize();
