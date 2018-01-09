@@ -45,9 +45,18 @@ int main(int argc, char **argv)
 	
 	qbrain brain(_rank);
 	int state=0, state_previous=-1, action=0, reward=0, timestep=0;
-	int sr_local[2];
-	
-	int32_t action_global[NUM_AGENTS], sr_global[NUM_AGENTS*2];
+	int num_phi=0;
+	int* phi;
+	int sr_local[100];
+
+	/* trial variables */
+	int reward_trial=0;
+	int test_period=10;
+	int trial_idx=0;
+
+	bool is_test_trial=false;
+
+	int32_t action_global[NUM_AGENTS], sr_global[100*NUM_AGENTS];
 	
 	int text_in=0;
 	std::srand (time(NULL)+_rank);
@@ -90,13 +99,15 @@ int main(int argc, char **argv)
 	if(_master)
 	  printf("\nGearing up \"%s\" system for %d rl-brain", processor_name, _size);
 
-	// master loop
+	// ----------------------------------- //
+	// -------------master loop ---------- //
+	// ----------------------------------- //
 	for (;;)
-	{
+	{	  
 	  //if(!_rank && msgcnt%1000==0)
 	  //printf("\n%d updates and going strong..", msgcnt); 
 
-          // send action                              
+          // send (action)
 	  MPI_Gather(&action, 1, MPI_INT, action_global, 1, MPI_INT, 0, MPI_COMM_WORLD);
 	  
 	  if(_master)
@@ -106,53 +117,85 @@ int main(int argc, char **argv)
 	    
 	    if (_VERBOSE_UDP)
 	    {
-	      printf("\n(A:");
+	      printf("\nT:%d (A:",msgcnt);
 	      for(int _r=0; _r<NUM_AGENTS; _r++) printf("%d,", action_global[_r]);
 	      printf(")");
 	    }
 	    fflush(stdout);
 	  }
 
-	  // receive state,reward [TODO]
-	  if (_master)
+	  // receive (K+1,phi_0,..,phi_K,reward)
+	  for(;_master;)
 	  {
-	    recvlen = recvfrom(fd, sr_global, sizeof(int)*NUM_AGENTS*2, 0, (struct sockaddr *)&remaddr, &addrlen);	        
-	    if (recvlen<0) printf("Uh oh! Something horrible happened with the simulator\n");	  
+	    recvlen = recvfrom(fd, sr_global, sizeof(int)*100, 0, (struct sockaddr *)&remaddr, &addrlen);
+	    
+	    if (recvlen<0) {printf("Uh oh! Something horrible happened with the simulator\n");break;}
+	    
+	    // reset condition
+	    if(recvlen==sizeof(int) && sr_global[0]==255)
+	    {
+	      brain.reset();
+
+	      if(_VERBOSE_UDP) printf("\n\n");
+	      
+	      trial_idx++;
+
+	      if(trial_idx%10==0)
+	      {
+		brain.trial_log(float(reward_trial));
+		brain._epsilon=1.0;
+		brain.set_test_train(true);
+	      }
+	      else
+	      {
+		brain._epsilon=1.0;
+		brain.set_test_train(false);
+	      }
+	      reward_trial=0;		
+	    }	    
+	    else
+	      break;
 	  }
 
-	  MPI_Scatter(&sr_global, 2, MPI_INT, sr_local, 2, MPI_INT, 0, MPI_COMM_WORLD);
+	  MPI_Scatter(&sr_global, 100, MPI_INT, sr_local, 100, MPI_INT, 0, MPI_COMM_WORLD);
 
-	  state = (sr_local[0]);
-	  reward = (sr_local[1]);
-
-	  // hijack s-r relation
-	  /*if(state < 11 && action<4)
-	    reward = -1;
-	  else if(state >= 11 && state<22 && action>4)
-	    reward = -1;
-	  else
-	  reward = 0;*/
+	  num_phi = sr_local[0]-1;
+	  phi = new int[num_phi];
 	  
-	  if(_master && _VERBOSE_UDP)
+	  if(_master)
 	  {
-	    printf(" (");
-	    for(int _r=0; _r<NUM_AGENTS; _r++)  printf("[%d,%d]", state,reward);
-	    printf(")->[brain]");
+	    if(_VERBOSE_UDP) printf(" S'(%d:",num_phi);
+	    for(int phi_idx=1; phi_idx<=num_phi; phi_idx++)
+	    {
+	      phi[phi_idx-1] = sr_local[phi_idx];	      
+	      if(_VERBOSE_UDP) printf("%d,", sr_local[phi_idx]);
+	    }
 	  }
+	  reward = sr_local[sr_local[0]];
+	  reward_trial += reward;
+	      
+	  if(_VERBOSE_UDP) printf(") R':(%d)->[brain] ",reward);	    
 	  fflush(stdout);
 
 	  // simulate the "Brain"
 	  msgcnt++;
 
 	  //if(state_previous != state) // filter Markovian state
-	  {
-	    brain.advance_timestep(state, reward, timestep);
+	  {	    
+	    // a' ~ Q(.|s',A)
+	    action = brain.get_action(num_phi, phi); 
+
+	    // w += alpha*(r'+gamma*q(s',a')-q(s,a))
+	    brain.advance_timestep(num_phi, phi, action, reward, timestep);
+
+	    // s = s'
+	    brain.set_state(num_phi, phi);
+
+	    // a = a'
+	    brain.set_action(action);
 	    
-	    brain.set_state(state);
-	    action = brain.get_action();
-	    timestep++;
-	    state_previous=state;
-	  }
+	    timestep++;	    
+	  }	  
 	}
 
 	MPI_Finalize();

@@ -27,13 +27,12 @@ public class ShowCollision : MonoBehaviour {
     {
         if (onTrigger)
         {
-            ShowIndicator();
+	  ShowIndicator();
         }
         else
         {
             HideIndicator();
         }
-
     }
 
     void ShowIndicator()

@@ -26,19 +26,22 @@ public class ZombieAgent : MonoBehaviour
     GameObject dummyNavMeshAgent;
 
     Vector3 goalAgentPosition;
-    Vector3 start_position;
-
+    Vector3 defaultLocation;
+    Quaternion defaultPose;
+  
     int reward = 0;
     int FixedUpdateIndex = 0;
     int UpdateIndex = 0;
-
+  
     /* Timing setup */
   
     int frame_rate = 30;
     float time_scale = 1.0F;
     float trial_duration = 20.0F;
     int trial_elasped=0; //in sec
-  
+
+    /* velocity component */
+    Vector3 position_previous;
 
     /* UDP channel initialize */
 			  
@@ -64,7 +67,12 @@ public class ZombieAgent : MonoBehaviour
         /* agent-env set-up */
 
 	state_array = new float[angle_sector.Length-1,radius_annulus.Length];
-	start_position = transform.position;
+    }
+
+    public void setResetPose(Vector3 location, Quaternion pose)
+    {
+      defaultLocation = location;
+      defaultPose = pose;
     }
 
     public void setTimeScale(float global_time_scale)
@@ -115,7 +123,7 @@ public class ZombieAgent : MonoBehaviour
       Application.targetFrameRate = frame_rate;
       Time.timeScale = time_scale;
 
-      action = 7; //3;
+      action = 3;
       
       do_action(action, 1.5f);
     }
@@ -125,27 +133,26 @@ public class ZombieAgent : MonoBehaviour
       //FixedUpdateIndex++;      
       //Debug.Log("UpdateLatency:"+Time.deltaTime);
 
-      if(Time.fixedTime>=trial_duration*trial_elasped)
-      {
-	trial_elasped++;
-	reset();
-      }     
+      //if(Time.fixedTime>=trial_duration*trial_elasped)
+      //{
+      //trial_elasped++;
+      //reset();
+      //}     
     }
   
     public void reset()
     {
-      float rand_pos_x = 0.0f + UnityEngine.Random.Range(-20,20); //- 8; 
-      float rand_pos_y = 0.0f;
-      float rand_pos_z = 0.0f + UnityEngine.Random.Range(-20,20); //10.0f;
-
-      float rand_theta_x = 0.0f;
-      float rand_theta_y = 0.0f; //UnityEngine.Random.Range(0,360);
-      float rand_theta_z = 0.0f;
-
-      transform.position = new Vector3(rand_pos_x,rand_pos_y,rand_pos_z);
-      transform.rotation = Quaternion.Euler(rand_theta_x,rand_theta_y,rand_theta_z);
+      transform.position = defaultLocation;
+      transform.rotation = Quaternion.Euler(0.0f,UnityEngine.Random.Range(0,360),0.0f); //defaultPose;
     }
 
+    public Vector3 get_velocity()
+    {
+      Vector3 velocity = (transform.position-position_previous);///Time.fixedDeltaTime;
+      position_previous = transform.position;
+      return velocity;
+    }
+    
     /* ------------------------
         get reward
     ----------------------------*/

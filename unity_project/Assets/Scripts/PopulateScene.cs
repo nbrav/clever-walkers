@@ -54,12 +54,12 @@ public class PopulateScene : MonoBehaviour
     int FixedUpdateIndex;
     int trial_elapsed=0;
     int frame_rate = 30;
-    float time_scale = 1.0F; 
-    float trial_duration = 20.0F; //in sec
+    float trial_duration = 45.0F; //in sec
     float time_per_update = 0.5F; //in sec
 
     string tring;
     string display_string;
+    int RESET_CODE_INT = 255;
   
     /* UDP socket and channel set-up */
 				
@@ -90,9 +90,13 @@ public class PopulateScene : MonoBehaviour
 	
 	/* UDP set-up */
 
-	socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-	IPEndPoint brain_EP = new IPEndPoint(IPAddress.Any, PORT);
-	socket.Bind(brain_EP);
+	// TODO: socket for each agent
+	//for(int idx=0; idx<numOfWalkers; idx++)
+	{
+	  socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+	  IPEndPoint brain_EP = new IPEndPoint(IPAddress.Any, PORT);
+	  socket.Bind(brain_EP);
+	}
     }
 
     // Update is called once per frame
@@ -102,36 +106,22 @@ public class PopulateScene : MonoBehaviour
 
     void FixedUpdate()
     {
+      Time.timeScale = LearningTimeScale;
       FixedUpdateIndex++;
       
       if(agent.Length<numOfWalkers+numOfZombies)
 	return;
-      
-      if(FixedUpdateIndex%1000==0)
-	Debug.Log(FixedUpdateIndex.ToString()+" updates and going strong..");
+
+      //if(FixedUpdateIndex%1000==0)
+      //Debug.Log(FixedUpdateIndex.ToString()+" updates and going strong..");
       
       // check for active UDP queue
       if(socket.Available<=0)
       {	
-	//Debug.Log("PopulateScene FixedUpdate Error: UDP connection unavailabe!");
 	display_string = "No UDPs!";
 	for(int idx=0; idx<numOfWalkers; idx++)
 	  agent[idx].GetComponent<QAgent>().set_udp(-1);
 	return;	
-      }
-
-      // check for reset
-      for(int idx=0; idx<numOfWalkers;idx++)
-      {
-	if(reset_counter[idx]>trial_duration)
-	{
-	  agent[idx].GetComponent<QAgent>().reset();
-	  reset_counter[idx]=0.0f;
-	}
-	else
-	{
-	  reset_counter[idx]+=Time.fixedDeltaTime;
-	}  
       }
       
       // execute brain update
@@ -148,29 +138,65 @@ public class PopulateScene : MonoBehaviour
 	for(int idx=0; idx<numOfWalkers; idx++)
 	{
 	  int action = System.BitConverter.ToInt32(data_in, idx*sizeof(int));
+	  
 	  agent[idx].GetComponent<QAgent>().set_udp(action);
 	  display_string = "A:"+action.ToString();
 	}	
-	
-	// sending state,reward
-	byte[] data_out = new byte[sizeof(int)*numOfWalkers*2];
-	int[] data_out_int = new int[numOfWalkers*2];
-	int[] state_reward = new int[2];
 
-	for(int idx=0; idx<numOfWalkers; idx++)
+	// check for reset
+	for(int idx=0; idx<numOfWalkers;idx++)
+	{
+	  if(reset_counter[idx]>=trial_duration)
+	  {
+	    display_string = "RESET";
+
+	    int agent_idx=0;
+	    for (;agent_idx<numOfWalkers; agent_idx++)
+	      agent[agent_idx].GetComponent<QAgent>().reset();
+	    for (;agent_idx<numOfWalkers+numOfZombies; agent_idx++)
+	      agent[agent_idx].GetComponent<ZombieAgent>().reset();
+	    
+	    reset_counter[idx]=0.0f;
+
+	    byte[] data_out = new byte[sizeof(int)];
+	    data_out[0] = Convert.ToByte(RESET_CODE_INT); // send reset code
+	    	    
+	    socket.SendTo(data_out, sizeof(int), SocketFlags.None, Remote);
+	  }
+	  else
+	  {
+	    reset_counter[idx]+=1;//Time.fixedDeltaTime;
+	  }  
+	}
+      
+	// sending state,reward
+	List<int> state_reward; // = new int[numOfWalkers+1];
+	for(int idx=0; idx<numOfWalkers; idx++) // TODO: make it multi-agent
 	{
 	  state_reward = agent[idx].GetComponent<QAgent>().get_udp();
 
-	  display_string += "\nS:"+state_reward[0].ToString()+ "\nR:"+state_reward[1].ToString();;
-		
-	  data_out_int[idx*2] = state_reward[0];
-	  data_out_int[idx*2+1] = state_reward[1];
+	  // display
+	  display_string += "\nS:";
+	  for(int obstacle_index=0; obstacle_index<state_reward.Count-1;obstacle_index++)
+	    display_string += " "+state_reward[obstacle_index].ToString();
+	  display_string += "\nR:"+state_reward[state_reward.Count-1].ToString();;
+	  
+	  int[] data_out_int = new int[numOfWalkers*(state_reward.Count+1)];
+	  byte[] data_out = new byte[sizeof(int)*numOfWalkers*(state_reward.Count+1)];
 
-	  if(state_reward[1]!=0.0f)
+	  data_out_int[0] = state_reward.Count;
+	  for(int idx2=0; idx2<state_reward.Count;idx2++)
+	    data_out_int[idx2+1] = state_reward[idx2];
+
+	  if(state_reward[state_reward.Count-1]!=0.0f)
+	  {
+	    display_string = "RESET!";
 	    reset_counter[idx]=trial_duration;
+	  }
+	  
+	  Buffer.BlockCopy(data_out_int, 0, data_out, 0, data_out.Length);	
+	  socket.SendTo(data_out, sizeof(int)*numOfWalkers*data_out_int.Length, SocketFlags.None, Remote);	  
 	}
-	Buffer.BlockCopy(data_out_int, 0, data_out, 0, data_out.Length);	
-	socket.SendTo(data_out, sizeof(int)*numOfWalkers*2, SocketFlags.None, Remote);	  
       }
       catch (Exception err)
       {
@@ -187,13 +213,44 @@ public class PopulateScene : MonoBehaviour
 	clone.GetComponent<ZombieAgent>().reset();
         clone.GetComponent<ZombieAgent>().setDummyAgentPrefab(agentPrefab);
 
+	Vector3 location;
+	Quaternion pose;
+	
+        if(index==1)
+	{
+	  location = new Vector3(-12.5f,0.0f,5.0f);
+	  pose = Quaternion.Euler(0.0f,UnityEngine.Random.Range(0,360),0.0f);
+	}
+	else if (index==2)
+	{
+	  location = new Vector3(13.0f,0.0f,10.5f);
+	  pose = Quaternion.Euler(0.0f,UnityEngine.Random.Range(0,360),0.0f);
+	}
+	else if (index==3)
+	{
+	  location = new Vector3(-10.5f,0.0f,-9.0f);
+	  pose = Quaternion.Euler(0.0f,UnityEngine.Random.Range(0,360),0.0f);
+	}
+	else if (index==4)
+	{
+	  location = new Vector3(14.0f,0.0f,-5.0f);
+	  pose = Quaternion.Euler(0.0f,UnityEngine.Random.Range(0,360),0.0f);
+	}
+	else
+	{
+	  location = new Vector3(-13.0f,0.0f,-14.0f);
+	  pose = Quaternion.Euler(0.0f,UnityEngine.Random.Range(0,360),0.0f);
+	}
+	
+	clone.GetComponent<ZombieAgent>().setResetPose(location,pose);
+
 	if(Learning)
 	{
 	  clone.GetComponent<ZombieAgent>().setTimeScale(LearningTimeScale);
 	}
 	else
 	{
-	  clone.GetComponent<ZombieAgent>().setTimeScale(1.0f);
+	  //clone.GetComponent<ZombieAgent>().setTimeScale(1.0f);
 	}
 
 	if(AnimationOff)  Destroy(clone.GetComponent<Animator>());	  
@@ -229,7 +286,7 @@ public class PopulateScene : MonoBehaviour
         }
         else
         {
-            clone.GetComponent<QAgent>().setTimeScale(1.0f);
+	  //clone.GetComponent<QAgent>().setTimeScale(1.0f);
         }
 	clone.GetComponent<QAgent>().setTimePerUpdate(time_per_update);
 
@@ -249,6 +306,6 @@ public class PopulateScene : MonoBehaviour
   
     void OnGUI ()
     {
-      tring = GUI.TextField (new Rect (50, 50, 60, 80), display_string);
+      tring = GUI.TextField (new Rect (50, 50, 500, 70), display_string);
     }
 }
