@@ -57,7 +57,6 @@ class qbrain
   FILE *action_outfile;
   FILE *reward_outfile;
   FILE *trial_outfile;
-  char const *QVALUE_FILE, *REWARD_FILE, *STATE_FILE, *ACTION_FILE, *TRIAL_FILE;
   
  public:
 
@@ -68,24 +67,7 @@ class qbrain
     _rank = rank;
     parse_param();
 
-    std::string QVALUE_STRING = "qvalue."+std::to_string(_rank)+".log";
-    QVALUE_FILE = QVALUE_STRING.c_str();
-
-    std::string STATE_STRING = "state."+std::to_string(_rank)+".log";
-    STATE_FILE = STATE_STRING.c_str();
-
-    std::string ACTION_STRING = "action."+std::to_string(_rank)+".log";
-    ACTION_FILE = ACTION_STRING.c_str();
-
-    std::string REWARD_STRING = "reward-punishment."+std::to_string(_rank)+".log";
-    REWARD_FILE = REWARD_STRING.c_str();
-
-    std::string TRIAL_STRING = "trial."+std::to_string(_rank)+".log";
-    TRIAL_FILE = TRIAL_STRING.c_str();
-
     float gaussian[] = {0.1,0.2,0.4,0.7,0.4,0.2,0.1,0.1};
-
-    std::ifstream fs(QVALUE_FILE);
 
     _state = new int[_state_size];
     _phi = new int[_state_size]; _num_phi=0;
@@ -98,10 +80,11 @@ class qbrain
       _phi_prime[idx]=0;
     }
     
+    std::ifstream fs(("./data/qvalue."+std::to_string(_rank)+".log").c_str());
     if(fs.is_open())
     {
       // Read Q matrix from file
-      qvalue_infile = fopen(QVALUE_FILE,"rb");
+      qvalue_infile = fopen(("./data/qvalue."+std::to_string(_rank)+".log").c_str(),"rb");
       fseek(qvalue_infile, -sizeof(float)*_reward_size*_state_size*_action_size, SEEK_END);
 
       _w.resize(_reward_size);
@@ -150,20 +133,20 @@ class qbrain
     }   
     
     _reward.resize(_reward_size);
-    
+
     _rpe.resize(_reward_size);
     std::fill(_rpe.begin(), _rpe.end(), 1.0);
 
-    qvalue_outfile = fopen(QVALUE_FILE, "ab");
+    qvalue_outfile = fopen(("./data/qvalue."+std::to_string(_rank)+".log").c_str(), "ab");
     fclose(qvalue_outfile);
 
-    state_outfile = fopen(STATE_FILE, "wb");
+    state_outfile = fopen(("./data/state."+std::to_string(_rank)+".log").c_str(), "ab");
     fclose(state_outfile);
 
-    reward_outfile = fopen(REWARD_FILE, "ab");
+    reward_outfile = fopen(("./data/reward-punishment."+std::to_string(_rank)+".log").c_str(), "ab");
     fclose(reward_outfile);
 
-    trial_outfile = fopen(TRIAL_FILE, "ab");
+    trial_outfile = fopen(("./data/trial."+std::to_string(_rank)+".log").c_str(), "ab");
     fclose(trial_outfile);
   }
 
@@ -204,28 +187,28 @@ class qbrain
   
   void trial_log(float trial_reward)
   {
-    trial_outfile = fopen("trial.log", "ab"); //ab
+    trial_outfile = fopen(("./data/trial."+std::to_string(_rank)+".log").c_str(), "ab"); //ab
     fwrite(&trial_reward, sizeof(float), _reward_size, trial_outfile);
     fclose(trial_outfile);    
   }
 
   void state_log()
   {
-    state_outfile = fopen("state.0.log", "ab"); //ab
+    state_outfile = fopen(("./data/state."+std::to_string(_rank)+".log").c_str(), "ab"); //ab
     fwrite(&_state[0], sizeof(int)*_state_size, 1, state_outfile);
     fclose(state_outfile);    
   }
 
   void action_log()
   {
-    action_outfile = fopen("action.0.log", "ab"); //ab
+    action_outfile = fopen(("./data/action."+std::to_string(_rank)+".log").c_str(), "ab"); //ab
     fwrite(&_action, sizeof(int), 1, action_outfile);
     fclose(action_outfile);    
   }
 
   void reward_log()
   {
-    reward_outfile = fopen("reward-punishment.0.log", "ab"); //ab
+    reward_outfile = fopen(("./data/reward-punishment."+std::to_string(_rank)+".log").c_str(), "ab"); //ab
     fwrite(&_reward[0], sizeof(float) , _reward_size, reward_outfile);
     fclose(reward_outfile);    
   }
@@ -233,7 +216,7 @@ class qbrain
   void qvalue_log()
   {
     //qvalue_outfile = fopen(QVALUE_FILE, "ab");
-    qvalue_outfile = fopen("qvalue.0.log", "ab");
+    qvalue_outfile = fopen(("./data/qvalue."+std::to_string(_rank)+".log").c_str(), "ab");
     for (int reward_idx=0; reward_idx<_reward_size; reward_idx++)
       for (int state_idx=0; state_idx<_state_size; state_idx++)
       	fwrite(&_w[reward_idx][state_idx][0], sizeof(float) , _action_size, qvalue_outfile);
@@ -328,7 +311,7 @@ class qbrain
       for(int idx=0; idx<_num_phi && _phi[idx]<_state_size; idx++)
 	_w[reward_idx][_phi[idx]][_action] += _alpha*_rpe[reward_idx]; //_etrace[reward_idx][state_idx][action_idx];    */
 
-    if(_VERBOSE_UDP)
+    if(false) //_VERBOSE_UDP)
     {
       printf("\n{T:%d eps:%0.1f LOG:%d ",_time,_epsilon,_is_test_trial);
       printf("S:(");

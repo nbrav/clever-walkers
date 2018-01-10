@@ -63,7 +63,7 @@ public class PopulateScene : MonoBehaviour
   
     /* UDP socket and channel set-up */
 				
-    public Socket socket = null;
+    public Socket[] socket;
     string THIS_IP = "127.0.0.1";
     string BESKOW_IP = "193.11.167.133";
     int PORT = 7890;
@@ -90,12 +90,12 @@ public class PopulateScene : MonoBehaviour
 	
 	/* UDP set-up */
 
-	// TODO: socket for each agent
-	//for(int idx=0; idx<numOfWalkers; idx++)
+	socket = new Socket[numOfWalkers];
+	for(int idx=0; idx<numOfWalkers; idx++)
 	{
-	  socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-	  IPEndPoint brain_EP = new IPEndPoint(IPAddress.Any, PORT);
-	  socket.Bind(brain_EP);
+	  socket[idx] = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+	  IPEndPoint brain_EP = new IPEndPoint(IPAddress.Any, PORT+idx);
+	  socket[idx].Bind(brain_EP);
 	}
     }
 
@@ -106,6 +106,8 @@ public class PopulateScene : MonoBehaviour
 
     void FixedUpdate()
     {
+      display_string = "";
+      
       Time.timeScale = LearningTimeScale;
       FixedUpdateIndex++;
       
@@ -115,87 +117,86 @@ public class PopulateScene : MonoBehaviour
       //if(FixedUpdateIndex%1000==0)
       //Debug.Log(FixedUpdateIndex.ToString()+" updates and going strong..");
       
-      // check for active UDP queue
-      if(socket.Available<=0)
-      {	
-	display_string = "No UDPs!";
-	for(int idx=0; idx<numOfWalkers; idx++)
+      // check for active UDP queue / or abandon
+      for(int idx=0; idx<numOfWalkers; idx++)
+      {
+	if(socket[idx].Available<=0)
+	{	
+	  //display_string = "Agent ";
+	  //display_string += idx.ToString()+",";
+	  //display_string += " Broken Connection!";
 	  agent[idx].GetComponent<QAgent>().set_udp(-1);
-	return;	
+	  return;
+	}
       }
       
       // execute brain update
       try
       {
-	// finding any client
-	IPEndPoint sender = new IPEndPoint(IPAddress.Any, 0);
-	EndPoint Remote = (EndPoint)(sender);
-
-	// receive action
-	byte[] data_in = new byte[256];;
-	socket.ReceiveFrom(data_in,numOfWalkers*sizeof(int),0,ref Remote);
-	
 	for(int idx=0; idx<numOfWalkers; idx++)
 	{
-	  int action = System.BitConverter.ToInt32(data_in, idx*sizeof(int));
+	  // finding any client
+	  IPEndPoint sender = new IPEndPoint(IPAddress.Any, PORT+idx);
+	  EndPoint Remote = (EndPoint)(sender);
+  
+	  // receive action
+	  byte[] data_in = new byte[256];;
+	  
+	  socket[idx].ReceiveFrom(data_in,sizeof(int),0,ref Remote);	
+	  int action = System.BitConverter.ToInt32(data_in, 0);
 	  
 	  agent[idx].GetComponent<QAgent>().set_udp(action);
-	  display_string = "A:"+action.ToString();
-	}	
-
-	// check for reset
-	for(int idx=0; idx<numOfWalkers;idx++)
-	{
+	  
+	  // check for reset
+	  // TODO: how to reset inside loop for all agents
 	  if(reset_counter[idx]>=trial_duration)
 	  {
-	    display_string = "RESET";
+	    display_string += "RESET";
 
 	    int agent_idx=0;
-	    for (;agent_idx<numOfWalkers; agent_idx++)
-	      agent[agent_idx].GetComponent<QAgent>().reset();
-	    for (;agent_idx<numOfWalkers+numOfZombies; agent_idx++)
-	      agent[agent_idx].GetComponent<ZombieAgent>().reset();
-	    
+
+	    agent[idx].GetComponent<QAgent>().reset();
+
 	    reset_counter[idx]=0.0f;
 
-	    byte[] data_out = new byte[sizeof(int)];
-	    data_out[0] = Convert.ToByte(RESET_CODE_INT); // send reset code
+	    byte[] data_out_reset = new byte[sizeof(int)];
+	    data_out_reset[0] = Convert.ToByte(RESET_CODE_INT); // send reset code
 	    	    
-	    socket.SendTo(data_out, sizeof(int), SocketFlags.None, Remote);
+	    socket[0].SendTo(data_out_reset, sizeof(int), SocketFlags.None, Remote);
 	  }
 	  else
 	  {
 	    reset_counter[idx]+=1;//Time.fixedDeltaTime;
-	  }  
-	}
+	  }
       
-	// sending state,reward
-	List<int> state_reward; // = new int[numOfWalkers+1];
-	for(int idx=0; idx<numOfWalkers; idx++) // TODO: make it multi-agent
-	{
+	  // sending state,reward
+	  List<int> state_reward;
 	  state_reward = agent[idx].GetComponent<QAgent>().get_udp();
 
 	  // display
-	  display_string += "\nS:";
+	  /*display_string += "A:"+action.ToString();
+	  display_string += " S:";
 	  for(int obstacle_index=0; obstacle_index<state_reward.Count-1;obstacle_index++)
 	    display_string += " "+state_reward[obstacle_index].ToString();
-	  display_string += "\nR:"+state_reward[state_reward.Count-1].ToString();;
+	    display_string += " R:"+state_reward[state_reward.Count-1].ToString();*/
 	  
-	  int[] data_out_int = new int[numOfWalkers*(state_reward.Count+1)];
-	  byte[] data_out = new byte[sizeof(int)*numOfWalkers*(state_reward.Count+1)];
-
+	  int[] data_out_int = new int[(state_reward.Count+1)];
+	  byte[] data_out = new byte[sizeof(int)*(state_reward.Count+1)];
+	  
 	  data_out_int[0] = state_reward.Count;
 	  for(int idx2=0; idx2<state_reward.Count;idx2++)
 	    data_out_int[idx2+1] = state_reward[idx2];
-
-	  if(state_reward[state_reward.Count-1]!=0.0f)
-	  {
+	  
+	  /*if(state_reward[state_reward.Count-1]!=0.0f)
+	    {
 	    display_string = "RESET!";
 	    reset_counter[idx]=trial_duration;
-	  }
+	    }*/
 	  
 	  Buffer.BlockCopy(data_out_int, 0, data_out, 0, data_out.Length);	
-	  socket.SendTo(data_out, sizeof(int)*numOfWalkers*data_out_int.Length, SocketFlags.None, Remote);	  
+	  socket[idx].SendTo(data_out, sizeof(int)*data_out_int.Length, SocketFlags.None,Remote);
+
+	  display_string += "\n";
 	}
       }
       catch (Exception err)
@@ -262,9 +263,16 @@ public class PopulateScene : MonoBehaviour
     {
         GameObject clone = GameObject.Instantiate(HumanPrefab);
 
-	clone.GetComponent<QAgent>().reset();
-        clone.GetComponent<QAgent>().setDummyAgentPrefab(agentPrefab);
+	clone.GetComponent<QAgent>().setDummyAgentPrefab(agentPrefab);
 	clone.AddComponent<Rigidbody>();
+
+	Vector3 location;
+	Quaternion pose;
+	
+	location = new Vector3(UnityEngine.Random.Range(-10,10),0.0f,UnityEngine.Random.Range(-10,10));
+	pose = Quaternion.Euler(0.0f,UnityEngine.Random.Range(0,360),0.0f);
+
+	clone.GetComponent<QAgent>().setResetPose(location,pose);
 
         if (!TurnOnSector)
         {
@@ -288,8 +296,10 @@ public class PopulateScene : MonoBehaviour
         {
 	  //clone.GetComponent<QAgent>().setTimeScale(1.0f);
         }
+	
 	clone.GetComponent<QAgent>().setTimePerUpdate(time_per_update);
-
+	clone.GetComponent<QAgent>().reset();
+        
         if (AnimationOff) Destroy(clone.GetComponent<Animator>());
 
         agent[index] = clone;

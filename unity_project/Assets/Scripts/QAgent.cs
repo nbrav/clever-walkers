@@ -40,7 +40,8 @@ public class QAgent : MonoBehaviour
     [SerializeField]
     GameObject dummyNavMeshAgent;
 
-    Vector3 start_position;
+    Vector3 defaultLocation;
+    Quaternion defaultPose;
 
     /* timing setup */
 
@@ -76,7 +77,6 @@ public class QAgent : MonoBehaviour
       /* agent-env set-up */
       
       state_array = new float[angle_sector.Length-1, radius_annulus.Length, 10]; //TODO: dicretize angle generically
-      start_position = transform.position;
               
       /* visualize states*/
       Transform[] trans = this.gameObject.GetComponentsInChildren<Transform>(true);
@@ -89,6 +89,12 @@ public class QAgent : MonoBehaviour
 
       rb = this.gameObject.GetComponent<Rigidbody>();
       rb.constraints = RigidbodyConstraints.FreezePositionY | RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationY | RigidbodyConstraints.FreezeRotationZ;
+    }
+
+    public void setResetPose(Vector3 location, Quaternion pose)
+    {
+      defaultLocation = location;
+      defaultPose = pose;
     }
 
     public void setTimeScale(float global_time_scale)
@@ -194,16 +200,8 @@ public class QAgent : MonoBehaviour
 
     public void reset()
     {
-      float rand_pos_x = 0.0f;// + UnityEngine.Random.Range(-20,20);
-      float rand_pos_y = 0.0f;
-      float rand_pos_z = 0.0f; // + UnityEngine.Random.Range(-20,20);
-
-      float rand_theta_x = 0.0f;
-      float rand_theta_y = 0.0f; // + Mathf.Round(UnityEngine.Random.Range(0,360/45))*45;
-      float rand_theta_z = 0.0f;
-
-      transform.position = new Vector3(rand_pos_x,rand_pos_y,rand_pos_z);
-      transform.rotation = Quaternion.Euler(rand_theta_x,rand_theta_y,rand_theta_z);
+      transform.position = defaultLocation;
+      transform.rotation = Quaternion.Euler(0.0f,UnityEngine.Random.Range(0,360),0.0f); //defaultPose;
 
       position_previous = Vector3.zero;
     }
@@ -244,7 +242,7 @@ public class QAgent : MonoBehaviour
 	{	    
 	  RaycastHit hit = hits[i];
 	  
-	  Vector3 velocity_obstacle = hits[i].collider.gameObject.GetComponent<ZombieAgent>().get_velocity();
+	  Vector3 velocity_obstacle = hits[i].collider.gameObject.GetComponent<QAgent>().get_velocity();
 	  Vector3 velocity_relative = velocity_obstacle - get_velocity();
 	  int relative_angle_idx = (int)Mathf.Round(Vector3.Angle(velocity_relative, transform.forward)/36);
 
