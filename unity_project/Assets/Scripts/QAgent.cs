@@ -17,18 +17,19 @@ public class QAgent : MonoBehaviour
     private static double DEG_TO_RAD = System.Math.PI / 180.0f;
 
     // reinforcement learning variables 
-    float[,,] state_array;
     int _action=7;
-    int reward = 0;
+    float reward = 0;
 
     // ego-centric state-space parameters
+    float[,,] state_array;
     float[] radius_annulus = new float[] {5.0f,10.0f,15.0f,20.0f};
     //int[] angle_sector = new int[] {-105,-95,-85,-75,-65,-55,-45,-35,-25,-15,-5,5,15,25,35,45,55,65,75,85,95,105,255};
     int[] angle_sector = new int[] {0,15,30,45,60,75,90,105,120,135,150,165,180,195,210,225,240,255,270,285,300,315,330,345,360};
 
     // allo-centric state-space parameters
-    int M=10, N=10;
-    int X_MIN=-20, X_MAX=20, X_STEP=4, Y_MIN=-20, Y_MAX=20, Y_STEP=4;  
+    float [,] placecell;
+    int NUM_PC=50;
+    float M=6.0f, N=6.0f;
 
     // visualization parameters
     List<Vector2> colorList = new List<Vector2>();
@@ -42,7 +43,8 @@ public class QAgent : MonoBehaviour
 
     Vector3 defaultLocation;
     Quaternion defaultPose;
-
+    GameObject goalObject;
+  
     /* timing setup */
 
     int frame_rate = 30;
@@ -74,11 +76,12 @@ public class QAgent : MonoBehaviour
     {
       QualitySettings.vSyncCount = 0;
             
-      /* agent-env set-up */
+      /* egocentric state set-up */
       
       state_array = new float[angle_sector.Length-1, radius_annulus.Length, 10]; //TODO: dicretize angle generically
               
-      /* visualize states*/
+      /* visualize egocentric states */
+      
       Transform[] trans = this.gameObject.GetComponentsInChildren<Transform>(true);
       foreach (Transform t in trans)
       {
@@ -87,6 +90,34 @@ public class QAgent : MonoBehaviour
       }
       show_collision.UntriggerIndicator();
 
+      /* allcentric place-cell set-up */
+
+      /*int _s_x = (int)Mathf.Floor(M*(transform.position.x-X_MIN)/(X_MAX-X_MIN));
+      int _s_y = (int)Mathf.Floor(N*(transform.position.z-Y_MIN)/(Y_MAX-Y_MIN));      
+
+      if(_s_x<0) {_s_x=0;}
+      else if (_s_x>M-1) _s_x=M-1;
+
+      if(_s_y<0) _s_y=0;
+      else if (_s_y>N-1) _s_y=N-1;*/
+
+      float PC_SIZE = 3.0f;
+      int pc_idx=0;
+      placecell = new float[NUM_PC,3];
+
+      for(float x=0.0f; x<=M; x++)
+      {
+	for(float y=0.0f; y<=N; y++)
+	{
+	  placecell[pc_idx,0] = (x - M/2.0f)*PC_SIZE;// + UnityEngine.Random.Range(-2,2);
+	  placecell[pc_idx,1] = (y - N/2.0f)*PC_SIZE;// + UnityEngine.Random.Range(-2,2);
+	  placecell[pc_idx,2] = 0.0f;
+	  pc_idx++;
+	}
+      }
+      
+      /* rigidbody setup */
+      
       rb = this.gameObject.GetComponent<Rigidbody>();
       rb.constraints = RigidbodyConstraints.FreezePositionY | RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationY | RigidbodyConstraints.FreezeRotationZ;
     }
@@ -112,17 +143,22 @@ public class QAgent : MonoBehaviour
         dummyNavMeshAgent = newPref;
     }
 
+    public void setGoal(GameObject goal)
+    {
+      goalObject = goal;
+    }
+
     // warning! setting velocity only gives old states, dummy!!
     void do_smooth_action(int action, float speed_default)
     {
-        var rb_velocity_local = transform.InverseTransformDirection(rb.velocity);
+      /*var rb_velocity_local = transform.InverseTransformDirection(rb.velocity);
 	
 	if(action==7) //halt
 	{
-	  //rb_velocity_local = new Vector3(0, 0, -1.0f*speed_default);
+	  rb_velocity_local = new Vector3(0, 0, -1.0f*speed_default);
 
-	  //gameObject.transform.Rotate(new Vector3(0, 0, 0) * Time.fixedDeltaTime);
-	  //gameObject.transform.position += gameObject.transform.forward * (0.0F * Time.fixedDeltaTime);
+	  gameObject.transform.Rotate(new Vector3(0, 0, 0) * Time.fixedDeltaTime);
+	  gameObject.transform.position += gameObject.transform.forward * (0.0F * Time.fixedDeltaTime);
 	}
 	else
 	{
@@ -130,15 +166,15 @@ public class QAgent : MonoBehaviour
 	  float theta = action_to_angle(action) * Time.deltaTime / time_per_update;
 	  gameObject.transform.Rotate(new Vector3(0, theta, 0));	  
 	  
-	  //rb_velocity_local.x = Mathf.Sin(Mathf.Deg2Rad * action_to_angle(_action));
-	  //rb_velocity_local.y = 0;
-	  //rb_velocity_local.z = Mathf.Cos(Mathf.Deg2Rad * action_to_angle(_action)) * speed_default;
+	  rb_velocity_local.x = Mathf.Sin(Mathf.Deg2Rad * action_to_angle(_action));
+	  rb_velocity_local.y = 0;
+	  rb_velocity_local.z = Mathf.Cos(Mathf.Deg2Rad * action_to_angle(_action)) * speed_default;
 
-	  //gameObject.transform.position += gameObject.transform.forward * (speed_default * Time.deltaTime);
-	  //gameObject.transform.Rotate(new Vector3(0, action_to_angle(_action), 0)*Time.deltaTime);	  
+	  gameObject.transform.position += gameObject.transform.forward * (speed_default * Time.deltaTime);
+	  gameObject.transform.Rotate(new Vector3(0, action_to_angle(_action), 0)*Time.deltaTime);	  
 	}
 
-	rb.velocity = transform.TransformDirection(rb_velocity_local);
+	rb.velocity = transform.TransformDirection(rb_velocity_local);*/
     }
 
     // instantaneous translation+rotation
@@ -146,22 +182,14 @@ public class QAgent : MonoBehaviour
     {
         // visualize action vectors
         Vector3 ray_origin = AGENT_HEIGHT*Vector3.up + transform.position; 
-	Vector3 ray_vector = Quaternion.AngleAxis(action_to_angle(_action), Vector3.up) * transform.forward;
-	Debug.DrawRay(ray_origin, ray_vector * 2, Color.green);
+	Vector3 ray_vector = Quaternion.AngleAxis(egocentric_action_to_angle(_action), Vector3.up) * transform.forward;
+	//Debug.DrawRay(ray_origin, ray_vector * 2, Color.green);
 
-	var rb_velocity_local = transform.InverseTransformDirection(rb.velocity);
-	
-	if(action==7) //halt
-	{
-	  gameObject.transform.Rotate(new Vector3(0, 0, 0));	  
-	  //gameObject.transform.position += gameObject.transform.forward * (0.0F * Time.fixedDeltaTime);
-	}
-	else
-	{
-	  float theta = action_to_angle(action);
-	  gameObject.transform.Rotate(new Vector3(0, theta, 0));	  
-	  gameObject.GetComponent<Rigidbody>().position += gameObject.transform.forward * (speed_default);
-	}
+	var rb_velocity_local = transform.InverseTransformDirection(rb.velocity);	
+	float theta = allocentric_action_to_angle(action);
+
+	transform.rotation = Quaternion.Euler(0.0f,theta,0.0f);;	
+	gameObject.GetComponent<Rigidbody>().position += gameObject.transform.forward * (speed_default);
     }
 
     // Update is called once per frame
@@ -177,10 +205,11 @@ public class QAgent : MonoBehaviour
     {
     }
     
-    public List<int> get_udp()
+    public List<float> get_udp()
     {
-      List<int> udp_out = new List<int>();
-      udp_out = get_features_posvel();      
+      List<float> udp_out = new List<float>();
+      //udp_out = get_features_egocentric();
+      udp_out = get_features_allocentric();
       udp_out.Add(get_reward());      
       return udp_out;
     }
@@ -200,7 +229,7 @@ public class QAgent : MonoBehaviour
 
     public void reset()
     {
-      transform.position = defaultLocation;
+      transform.position = new Vector3(UnityEngine.Random.Range(-9,9), 0.0f, UnityEngine.Random.Range(-9,9)); //defaultLocation;
       transform.rotation = Quaternion.Euler(0.0f,UnityEngine.Random.Range(0,360),0.0f); //defaultPose;
 
       position_previous = Vector3.zero;
@@ -257,6 +286,30 @@ public class QAgent : MonoBehaviour
       }
     }
 
+    /* --------------------- 
+       hippocampus place-cell
+    --------------------- */
+    void simulate_hippocampus()
+    {
+      float sigma = 3.0f;
+      for(int pc_idx=0; pc_idx<NUM_PC; pc_idx++)
+      {
+	float dis1 = transform.position.x - placecell[pc_idx,0]; // TODO /2sigma2
+	float dis2 = transform.position.z - placecell[pc_idx,1];
+	placecell[pc_idx,2] = Mathf.Round(Mathf.Exp(-(dis1*dis1+dis2*dis2)/2/sigma/sigma)*100)/100;
+
+	if(placecell[pc_idx,2]<0.2f) placecell[pc_idx,2]=0.0f; //WARNING clipping approximation
+	
+	Debug.DrawRay(new Vector3(placecell[pc_idx,0], 0.0f, placecell[pc_idx,1]), Vector3.up, Color.red);
+      }
+    }
+
+    void OnDrawGizmosSelected()
+    {
+      Gizmos.color = Color.yellow;
+      Gizmos.DrawSphere(transform.position, 1);
+    }
+  
     // Get which sector has collision
     float angle_id(float angle)
     {
@@ -288,83 +341,47 @@ public class QAgent : MonoBehaviour
         return color_angle_sector;
     }
 
-    /* --------------------
-       convert sensory state matrix to coded state:
-       DEPRECATED; TODO: add appropriate name
-    --------------------- */
-    int code_state_combinatoric_sectorized()
+    List<float> code_placecells()
     {
-        // TODO: complete for new multi-dimensional state_array
-        float state = 0;
-        //for(int sector=0; sector<state_array.Length; sector++)
-        //{
-        //state += state_array[sector] * Mathf.Pow(radius_annulus.Length+1, state_array.Length-1-sector);
-        //Debug.Log("["+state_array[0].ToString()+" "+state_array[1].ToString()+" "+state_array[2].ToString()+"] "+state.ToString());
-        //}
-        return (int)state;
-    }
+      //TODO DEBUG
+      
+      List<float> phi = new List<float>(); 
 
-    /* --------------------
-       convert sensory state matrix to coded state:
-       DEPRECATED; combinatoric: all combinations of sensor grid 
-    --------------------- */
-    int code_state_combinatoric()
-    {
-      /*float state = 0;
-        int unit_tracker = 0;
-        for (int sector = 0; sector < angle_sector.Length - 1; sector++)
-            for (int annulus = 0; annulus < radius_annulus.Length; annulus++)
-                state += state_array[sector, annulus] * Mathf.Pow(2, unit_tracker++);
-		return (int)state;*/
-      return 0;
-    }
-
-    /* --------------------
-       convert sensory state matrix to coded state:
-       nearest-winner
-    --------------------- */
-    int code_state_egocentric()
-    {
-      /*for(int annulus=0; annulus<radius_annulus.Length; annulus++)
+      // ORIGINAL PLACE CELL
+      /*for(int pc_idx=0; pc_idx<NUM_PC; pc_idx++)
+	phi.Add(placecell[pc_idx,2]);            
+      */
+      
+      // NEAREST PLACE CELL
+      int nearest_pc_idx = 0;
+      for(int pc_idx=0; pc_idx<NUM_PC; pc_idx++)
       {
-	System.Random rand = new System.Random();
-	List<int> closest_sectors = new List<int>();
-	
-	for(int sector=0; sector<angle_sector.Length-1; sector++)
-	{
-	  if(state_array[sector,annulus] == 1.0f)
-	  {
-	    closest_sectors.Add(sector);
-	  }
-	}
+	if(placecell[pc_idx,2]>placecell[nearest_pc_idx,2])
+	  nearest_pc_idx = pc_idx;	  
+      }
 
-	if(!closest_sectors.Count.Equals(0))
-	{
-	  int index = rand.Next(closest_sectors.Count);
-	  //Debug.Log("("+closest_sectors[index].ToString()+","+annulus.ToString()+")");	  
-	  return closest_sectors[index]+annulus*(angle_sector.Length-1);
-	}
-	}*/
-      return (int)0;
-    }
+      for(int pc_idx=0; pc_idx<NUM_PC; pc_idx++)	
+	if(pc_idx == nearest_pc_idx)
+	  phi.Add(1);
+	else
+	  phi.Add(0);            
 
-    /* --------------------
-       convert positions into place-cell state representations
-       allocentric
-    --------------------- */
-    int code_state_allocentric()
-    {      
-      int _s_x = (int)Mathf.Floor(M*(transform.position.x-X_MIN)/(X_MAX-X_MIN));
-      int _s_y = (int)Mathf.Floor(N*(transform.position.z-Y_MIN)/(Y_MAX-Y_MIN));      
+      for(int pc_idx=0; pc_idx<NUM_PC; pc_idx++)
+	Debug.DrawRay(new Vector3(placecell[pc_idx,0], 0.0f, placecell[pc_idx,1]) + Vector3.up,		      
+		    Vector3.up*phi[pc_idx],
+		    Color.green);	
+
+      /*int _s_x = (int)Mathf.Floor(M*(transform.position.x+15.0f)/30.0f);
+      int _s_y = (int)Mathf.Floor(N*(transform.position.z+15.0f)/30.0f);      
 
       if(_s_x<0) {_s_x=0;}
-      else if (_s_x>M-1) _s_x=M-1;
+      else if (_s_x>M-1) _s_x=(int)M-1;
 
       if(_s_y<0) _s_y=0;
-      else if (_s_y>N-1) _s_y=N-1;
-
-      int _s = (_s_y*M+_s_x);
-      return _s;
+      else if (_s_y>N-1) _s_y=(int)N-1;
+      */
+      
+      return phi;
     }
 
     /* --------------------
@@ -383,7 +400,7 @@ public class QAgent : MonoBehaviour
     ----------------------- */
     List<int> code_feature()
     {
-      List<int> phi = new List<int>(); //TODO: get num of agents - 1
+      List<int> phi = new List<int>();
 
       for(int annulus=0; annulus<radius_annulus.Length; annulus++)
       {
@@ -402,23 +419,20 @@ public class QAgent : MonoBehaviour
       return phi;
     }
 
-    /* --------------------
-       get state (encoded, egocentric)       
+
+   /* --------------------
+       get feature (sector x ring x agent_vel_dir, encoded, allocentric)       
     --------------------- */
-    List<int> get_state()
+    List<float> get_features_allocentric()
     {
-        List<int> state = new List<int>(); //TODO: get num of agents - 1
-	 
-	//cast_ray();//cast ray around the agent and fill up sensor matrix
-        //get_color_list();
-	//state = code_state_pole();
-        return state;
+        simulate_hippocampus();
+        return code_placecells();
     }
 
     /* --------------------
-       get feature (positions, encoded, egocentric)       
+       get feature (sector x ring x agent_vel_dir, encoded, egocentric)       
     --------------------- */
-    List<int> get_features_posvel()
+    List<int> get_features_egocentric()
     {
         cast_ray();
         get_color_list();
@@ -431,24 +445,29 @@ public class QAgent : MonoBehaviour
     void OnTriggerEnter(Collider col)
     {
       //Debug.Log("Collision +"+col.gameObject.name);
-      reward = -1;
-      if (turnOnTriangleIndicator)
-	show_collision.TriggerIndicator();
+
+      if(col.gameObject == goalObject)
+      {
+	if (turnOnTriangleIndicator)
+	  show_collision.TriggerIndicator();
+	
+	reward = 1.0f;
+      }
     }
 
     void OnTriggerExit(Collider col)
     {
-      reward = 0;
-      if (turnOnTriangleIndicator)
-	show_collision.UntriggerIndicator();
+      if(col.gameObject == goalObject)
+      {
+	if (turnOnTriangleIndicator)
+	  show_collision.UntriggerIndicator();
+	
+	reward = 0.0f;
+      }
     }
 
-    int get_reward()
-    {
-      /*if(transform.eulerAngles.y>267.5 && transform.eulerAngles.y<272.5)
-	reward=1;
-      else
-      reward=0;*/
+    float get_reward()
+    {      
       return reward;
     }
 
@@ -479,7 +498,7 @@ public class QAgent : MonoBehaviour
     }
 
     /* utilities: get angle from action coding */
-    float action_to_angle(int actionIndex)
+    float egocentric_action_to_angle(int actionIndex)
     {
         if (actionIndex == 0)                 return -45.0f;
         else if (actionIndex == 1)            return -30.0f;
@@ -489,6 +508,20 @@ public class QAgent : MonoBehaviour
         else if (actionIndex == 5)            return 30.0f;
         else if (actionIndex == 6)            return 45.0f;
 	else if (actionIndex == 7)            return 0.0f;
+	else return -1.0f;
+    }
+
+    /* utilities: get angle from action coding */
+    float allocentric_action_to_angle(int actionIndex)
+    {
+        if (actionIndex == 0)                 return -135.0f;
+        else if (actionIndex == 1)            return -90.0f;
+        else if (actionIndex == 2)            return -45.0f;
+        else if (actionIndex == 3)            return 0.0f;
+        else if (actionIndex == 4)            return 45.0f;
+        else if (actionIndex == 5)            return 90.0f;
+        else if (actionIndex == 6)            return 135.0f;
+	else if (actionIndex == 7)            return 180.0f;
 	else return -1.0f;
     }
 

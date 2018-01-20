@@ -59,7 +59,6 @@ public class PopulateScene : MonoBehaviour
 
     string tring;
     string display_string;
-    int RESET_CODE_INT = 255;
   
     /* UDP socket and channel set-up */
 				
@@ -73,7 +72,7 @@ public class PopulateScene : MonoBehaviour
 	agent = new GameObject[numOfZombies+numOfWalkers];
 	
 	IntelligentAgentRotation = Quaternion.Euler(0, 240, 0);
-	IntelligentAgentPosition = new Vector3(-140.0f, 0.0f, 210.0f);	
+	IntelligentAgentPosition = new Vector3(-140.0f, 0.0f, 210.0f);
 
         GenerateAgent();
     }
@@ -159,10 +158,13 @@ public class PopulateScene : MonoBehaviour
 
 	    reset_counter[idx]=0.0f;
 
-	    byte[] data_out_reset = new byte[sizeof(int)];
-	    data_out_reset[0] = Convert.ToByte(RESET_CODE_INT); // send reset code
+	    float[] data_out_float_reset = new float[1];	    
+	    data_out_float_reset[0] = float.MaxValue; // send reset code
+
+	    byte[] data_out_reset = new byte[sizeof(float)];
+	    Buffer.BlockCopy(data_out_float_reset, 0, data_out_reset, 0, data_out_reset.Length);	
 	    	    
-	    socket[0].SendTo(data_out_reset, sizeof(int), SocketFlags.None, Remote);
+	    socket[0].SendTo(data_out_reset, sizeof(float), SocketFlags.None, Remote);
 	  }
 	  else
 	  {
@@ -170,31 +172,31 @@ public class PopulateScene : MonoBehaviour
 	  }
       
 	  // sending state,reward
-	  List<int> state_reward;
+	  List<float> state_reward;
 	  state_reward = agent[idx].GetComponent<QAgent>().get_udp();
 
 	  // display
-	  /*display_string += "A:"+action.ToString();
-	  display_string += " S:";
+	  display_string += "A:"+action.ToString();
+	  display_string += "\nS:";
 	  for(int obstacle_index=0; obstacle_index<state_reward.Count-1;obstacle_index++)
 	    display_string += " "+state_reward[obstacle_index].ToString();
-	    display_string += " R:"+state_reward[state_reward.Count-1].ToString();*/
+	  display_string += "\nR:"+state_reward[state_reward.Count-1].ToString();
 	  
-	  int[] data_out_int = new int[(state_reward.Count+1)];
-	  byte[] data_out = new byte[sizeof(int)*(state_reward.Count+1)];
+	  float[] data_out_int = new float[(state_reward.Count+1)];
+	  byte[] data_out = new byte[sizeof(float)*(state_reward.Count+1)];
 	  
 	  data_out_int[0] = state_reward.Count;
 	  for(int idx2=0; idx2<state_reward.Count;idx2++)
 	    data_out_int[idx2+1] = state_reward[idx2];
 	  
-	  /*if(state_reward[state_reward.Count-1]!=0.0f)
-	    {
+	  if(state_reward[state_reward.Count-1]!=0.0f)
+	  {
 	    display_string = "RESET!";
 	    reset_counter[idx]=trial_duration;
-	    }*/
+	  }
 	  
 	  Buffer.BlockCopy(data_out_int, 0, data_out, 0, data_out.Length);	
-	  socket[idx].SendTo(data_out, sizeof(int)*data_out_int.Length, SocketFlags.None,Remote);
+	  socket[idx].SendTo(data_out, sizeof(float)*data_out_int.Length, SocketFlags.None,Remote);
 
 	  display_string += "\n";
 	}
@@ -266,6 +268,7 @@ public class PopulateScene : MonoBehaviour
 	clone.GetComponent<QAgent>().setDummyAgentPrefab(agentPrefab);
 	clone.AddComponent<Rigidbody>();
 
+	// agent pose
 	Vector3 location;
 	Quaternion pose;
 	
@@ -274,32 +277,33 @@ public class PopulateScene : MonoBehaviour
 
 	clone.GetComponent<QAgent>().setResetPose(location,pose);
 
+	// draw sector state
         if (!TurnOnSector)
-        {
             clone.GetComponent<DrawSector>().enabled = false;
-        }
 
+	// draw indicator reward
         if (!TurnOnTriangleIndicator)
-        {
             clone.GetComponent<QAgent>().turn_triangle_indicator(false);
-        }
         else
-        {
             clone.GetComponent<QAgent>().turn_triangle_indicator(true);
-        }
 
+	// set time-scale
         if (Learning)
-        {
             clone.GetComponent<QAgent>().setTimeScale(LearningTimeScale);
-        }
         else
-        {
-	  //clone.GetComponent<QAgent>().setTimeScale(1.0f);
-        }
-	
+	  clone.GetComponent<QAgent>().setTimeScale(1.0f);
+
+	// set timing details
 	clone.GetComponent<QAgent>().setTimePerUpdate(time_per_update);
 	clone.GetComponent<QAgent>().reset();
-        
+
+	// goal object
+	GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+	sphere.transform.position = new Vector3(7.0F, 0.5F, 7.0F);
+	sphere.name = "goal"+index.ToString();
+	clone.GetComponent<QAgent>().setGoal(sphere);
+
+	// animation
         if (AnimationOff) Destroy(clone.GetComponent<Animator>());
 
         agent[index] = clone;
@@ -316,6 +320,6 @@ public class PopulateScene : MonoBehaviour
   
     void OnGUI ()
     {
-      tring = GUI.TextField (new Rect (50, 50, 500, 70), display_string);
+      tring = GUI.TextField (new Rect (50, 50, 1000, 70), display_string);
     }
 }

@@ -44,10 +44,11 @@ int main(int argc, char **argv)
 	/* create (multi-)brain objects */
 	
 	qbrain brain(_rank);
-	int state=0, state_previous=-1, action=0, reward=0, timestep=0;
+	int state=0, state_previous=-1, action=0, timestep=0;
+	float  reward=0.0;
 	int num_phi=0;
-	int* phi;
-	int sr_local[100];
+	float* phi;
+	float sr_local[100];
 
 	/* trial variables */
 	int reward_trial=0;
@@ -110,13 +111,13 @@ int main(int argc, char **argv)
 	  // receive (K+1,phi_0,..,phi_K,reward)
 	  for(;;)
 	  {
-	    recvlen = recvfrom(fd, sr_local, sizeof(int)*30, 0, (struct sockaddr *)&remaddr, &addrlen);
+	    recvlen = recvfrom(fd, sr_local, sizeof(float)*100, 0, (struct sockaddr *)&remaddr, &addrlen);
 	    
 	    if (recvlen<0) {printf("Uh oh! Something horrible happened with the simulator\n");break;}
 	    
 	    // reset condition
-	    if(recvlen==sizeof(int) && sr_local[0]==255)
-	    {	    
+	    if(recvlen==sizeof(float) && sr_local[0]==std::numeric_limits<float>::max())
+	    {
 	      brain.reset();
 
 	      trial_idx++;
@@ -129,7 +130,7 @@ int main(int argc, char **argv)
 	      }
 	      else
 	      {
-		brain._epsilon=1.0;
+		brain._epsilon=0.7;
 		brain.set_test_train(false);
 	      }
 	      reward_trial=0;		
@@ -138,14 +139,14 @@ int main(int argc, char **argv)
 	      break;
 	   }
 	    
-	  num_phi = sr_local[0]-1;
-	  phi = new int[num_phi];
+	  num_phi = int(sr_local[0])-1;
+	  phi = new float[num_phi];
 	  for(int phi_idx=1; phi_idx<=num_phi; phi_idx++)
 	    phi[phi_idx-1] = sr_local[phi_idx];	      
 
-	  reward = sr_local[sr_local[0]];
+	  reward = sr_local[int(sr_local[0])];
 	  reward_trial += reward;
-	    
+	  	    
 	  if (_VERBOSE_UDP)
 	  {
 	    printf("\n[AGENT: %d] T:%d (A:",_rank, msgcnt);
@@ -155,9 +156,9 @@ int main(int argc, char **argv)
 	    printf(" S'(%d:",num_phi);
 	    
 	    for(int phi_idx=1; phi_idx<=num_phi; phi_idx++)
-	    printf("%d,", sr_local[phi_idx]);
+	      printf("%0.2f,", sr_local[phi_idx]);
 
-	    printf(") R':(%d)->[brain] ",reward);
+	    printf(") R':(%0.2f)->[brain] ",reward);
 	  }
 	  fflush(stdout);
 
@@ -171,7 +172,7 @@ int main(int argc, char **argv)
 	  brain.advance_timestep(num_phi, phi, action, reward, timestep);
 	  
 	  // s = s'
-	  brain.set_state(num_phi, phi);
+	  brain.set_state_pc(num_phi, phi, action);
 	  
 	  // a = a'
 	  brain.set_action(action);
