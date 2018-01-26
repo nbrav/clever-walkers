@@ -54,7 +54,7 @@ public class PopulateScene : MonoBehaviour
     int FixedUpdateIndex;
     int trial_elapsed=0;
     int frame_rate = 30;
-    float trial_duration = 45.0F; //in sec
+    float trial_duration = 65.0F; //in sec
     float time_per_update = 0.5F; //in sec
 
     string tring;
@@ -85,7 +85,7 @@ public class PopulateScene : MonoBehaviour
 
 	reset_counter = new float[numOfWalkers];
 	for(int i=0;i<numOfWalkers;i++)
-	  reset_counter[i]=0.0f;
+	  reset_counter[i]=trial_duration;
 	
 	/* UDP set-up */
 
@@ -102,9 +102,12 @@ public class PopulateScene : MonoBehaviour
     void Update ()
     {
     }
-
+  
+    // FixedUpdate is called every 
     void FixedUpdate()
     {
+      IPEndPoint sender;
+      EndPoint Remote;
       display_string = "";
       
       Time.timeScale = LearningTimeScale;
@@ -113,74 +116,74 @@ public class PopulateScene : MonoBehaviour
       if(agent.Length<numOfWalkers+numOfZombies)
 	return;
 
-      //if(FixedUpdateIndex%1000==0)
-      //Debug.Log(FixedUpdateIndex.ToString()+" updates and going strong..");
-      
       // check for active UDP queue / or abandon
       for(int idx=0; idx<numOfWalkers; idx++)
       {
 	if(socket[idx].Available<=0)
 	{	
-	  //display_string = "Agent ";
-	  //display_string += idx.ToString()+",";
-	  //display_string += " Broken Connection!";
 	  agent[idx].GetComponent<QAgent>().set_udp(-1);
 	  return;
 	}
       }
-      
+
+      float global_reset=0.0f;
+      for (int reset_idx=0; reset_idx<numOfWalkers; reset_idx++)
+	global_reset += reset_counter[reset_idx];
+	  
       // execute brain update
       try
-      {
+      {	
+	// receive all action
 	for(int idx=0; idx<numOfWalkers; idx++)
 	{
 	  // finding any client
-	  IPEndPoint sender = new IPEndPoint(IPAddress.Any, PORT+idx);
-	  EndPoint Remote = (EndPoint)(sender);
-  
+	  sender = new IPEndPoint(IPAddress.Any, PORT+idx);
+	  Remote = (EndPoint)(sender);
+
 	  // receive action
 	  byte[] data_in = new byte[256];;
 	  
 	  socket[idx].ReceiveFrom(data_in,sizeof(int),0,ref Remote);	
 	  int action = System.BitConverter.ToInt32(data_in, 0);
 	  
-	  agent[idx].GetComponent<QAgent>().set_udp(action);
-	  
-	  // check for reset
-	  // TODO: how to reset inside loop for all agents
-	  if(reset_counter[idx]>=trial_duration)
+	  // if local reset
+	  if(reset_counter[idx]<=0.0f && global_reset!=0.0f)
 	  {
-	    display_string += "RESET";
+	    display_string += "AGENT "+idx.ToString()+" RESETED";
 
-	    int agent_idx=0;
-
-	    agent[idx].GetComponent<QAgent>().reset();
-
-	    reset_counter[idx]=0.0f;
+	    agent[idx].GetComponent<QAgent>().set_udp(-1);
 
 	    float[] data_out_float_reset = new float[1];	    
-	    data_out_float_reset[0] = float.MaxValue; // send reset code
-
+	    data_out_float_reset[0] = float.MaxValue;
 	    byte[] data_out_reset = new byte[sizeof(float)];
-	    Buffer.BlockCopy(data_out_float_reset, 0, data_out_reset, 0, data_out_reset.Length);	
-	    	    
-	    socket[0].SendTo(data_out_reset, sizeof(float), SocketFlags.None, Remote);
+	    Buffer.BlockCopy(data_out_float_reset, 0, data_out_reset, 0, data_out_reset.Length);		    	    
+	    socket[idx].SendTo(data_out_reset, sizeof(float), SocketFlags.None, Remote);
+	  }
+	  else if(global_reset==0.0f)
+	  {
+	    agent[idx].GetComponent<QAgent>().reset();
+
+	    float[] data_out_float_reset = new float[2];	    
+	    data_out_float_reset[0] = float.MaxValue; data_out_float_reset[1] = float.MaxValue;	    
+	    byte[] data_out_reset = new byte[sizeof(float)*2];
+	    Buffer.BlockCopy(data_out_float_reset, 0, data_out_reset, 0, data_out_reset.Length);		    	    
+	    socket[idx].SendTo(data_out_reset, sizeof(float)*2, SocketFlags.None, Remote);
+
+	    for (int reset_idx=0; reset_idx<numOfWalkers; reset_idx++)
+	      reset_counter[reset_idx] = trial_duration;
+
+	    display_string += "GLOBAL RESETED";
 	  }
 	  else
 	  {
-	    reset_counter[idx]+=1;//Time.fixedDeltaTime;
+	    display_string += "AGENT " + idx.ToString();
+	    reset_counter[idx]-=1;//Time.fixedDeltaTime;
+	    agent[idx].GetComponent<QAgent>().set_udp(action);
 	  }
       
 	  // sending state,reward
 	  List<float> state_reward;
 	  state_reward = agent[idx].GetComponent<QAgent>().get_udp();
-
-	  // display
-	  display_string += "A:"+action.ToString();
-	  display_string += "\nS:";
-	  for(int obstacle_index=0; obstacle_index<state_reward.Count-1;obstacle_index++)
-	    display_string += " "+state_reward[obstacle_index].ToString();
-	  display_string += "\nR:"+state_reward[state_reward.Count-1].ToString();
 	  
 	  float[] data_out_int = new float[(state_reward.Count+1)];
 	  byte[] data_out = new byte[sizeof(float)*(state_reward.Count+1)];
@@ -188,16 +191,25 @@ public class PopulateScene : MonoBehaviour
 	  data_out_int[0] = state_reward.Count;
 	  for(int idx2=0; idx2<state_reward.Count;idx2++)
 	    data_out_int[idx2+1] = state_reward[idx2];
-	  
-	  if(state_reward[state_reward.Count-1]!=0.0f)
-	  {
-	    display_string = "RESET!";
-	    reset_counter[idx]=trial_duration;
-	  }
+
+	  if(global_reset!=0.0f && reset_counter[idx]!= 0.0f)
+	    if(state_reward[state_reward.Count-3]!=0.0f)
+	    {
+	      reset_counter[idx]=0.0f;
+	    }
 	  
 	  Buffer.BlockCopy(data_out_int, 0, data_out, 0, data_out.Length);	
 	  socket[idx].SendTo(data_out, sizeof(float)*data_out_int.Length, SocketFlags.None,Remote);
 
+	  // display
+	  display_string += "COUNTER "+reset_counter[idx].ToString()+","+global_reset.ToString();
+	  display_string += " (A:"+action.ToString();
+	  display_string += ")-->(S':";
+	  //for(int obstacle_index=0; obstacle_index<state_reward.Count;obstacle_index++)
+	  //  display_string += " "+state_reward[obstacle_index].ToString();
+	  display_string += "..,"+state_reward[state_reward.Count-3].ToString();
+	  display_string += ","+state_reward[state_reward.Count-2].ToString();
+	  display_string += ")";	  
 	  display_string += "\n";
 	}
       }
@@ -265,15 +277,42 @@ public class PopulateScene : MonoBehaviour
     {
         GameObject clone = GameObject.Instantiate(HumanPrefab);
 
+	clone.name = "agent"+index.ToString();
 	clone.GetComponent<QAgent>().setDummyAgentPrefab(agentPrefab);
 	clone.AddComponent<Rigidbody>();
 
 	// agent pose
-	Vector3 location;
+	Vector3 location = new Vector3(0,0,0);
 	Quaternion pose;
 	
-	location = new Vector3(UnityEngine.Random.Range(-10,10),0.0f,UnityEngine.Random.Range(-10,10));
+	// goal object
+	GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);	      
+	sphere.name = "goal"+index.ToString();
+	
 	pose = Quaternion.Euler(0.0f,UnityEngine.Random.Range(0,360),0.0f);
+
+	float square_dist = 7.5f;
+	
+	if(index==0)
+	{
+	  location = new Vector3(-square_dist,0,-square_dist);
+	  sphere.transform.position = new Vector3(square_dist, 1.5F, square_dist);
+	}
+	else if(index==1)
+	{
+	  location = new Vector3(-square_dist,0,square_dist);
+	  sphere.transform.position = new Vector3(square_dist, 1.5F, -square_dist);
+	}
+	else if(index==2)
+	{
+	  location = new Vector3(square_dist,0,-square_dist);
+	  sphere.transform.position = new Vector3(-square_dist, 1.5F, square_dist);
+	}
+	else if(index==3)
+	{
+	  location = new Vector3(square_dist,0,square_dist);
+	  sphere.transform.position = new Vector3(-square_dist, 1.5F, -square_dist);
+	}
 
 	clone.GetComponent<QAgent>().setResetPose(location,pose);
 
@@ -297,10 +336,6 @@ public class PopulateScene : MonoBehaviour
 	clone.GetComponent<QAgent>().setTimePerUpdate(time_per_update);
 	clone.GetComponent<QAgent>().reset();
 
-	// goal object
-	GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-	sphere.transform.position = new Vector3(7.0F, 0.5F, 7.0F);
-	sphere.name = "goal"+index.ToString();
 	clone.GetComponent<QAgent>().setGoal(sphere);
 
 	// animation
@@ -320,6 +355,6 @@ public class PopulateScene : MonoBehaviour
   
     void OnGUI ()
     {
-      tring = GUI.TextField (new Rect (50, 50, 1000, 70), display_string);
+      tring = GUI.TextField (new Rect (50, 50, 450, 150), display_string);
     }
 }

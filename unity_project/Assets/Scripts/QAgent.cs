@@ -18,18 +18,18 @@ public class QAgent : MonoBehaviour
 
     // reinforcement learning variables 
     int _action=7;
-    float reward = 0;
+    float reward_collision = 0, reward_goal;
 
     // ego-centric state-space parameters
     float[,,] state_array;
     float[] radius_annulus = new float[] {5.0f,10.0f,15.0f,20.0f};
-    //int[] angle_sector = new int[] {-105,-95,-85,-75,-65,-55,-45,-35,-25,-15,-5,5,15,25,35,45,55,65,75,85,95,105,255};
     int[] angle_sector = new int[] {0,15,30,45,60,75,90,105,120,135,150,165,180,195,210,225,240,255,270,285,300,315,330,345,360};
 
     // allo-centric state-space parameters
     float [,] placecell;
-    int NUM_PC=50;
-    float M=6.0f, N=6.0f;
+    int NUM_PC=100;
+    float M=10.0f, N=10.0f;
+    float PC_SIZE = 2.5f;
 
     // visualization parameters
     List<Vector2> colorList = new List<Vector2>();
@@ -92,22 +92,12 @@ public class QAgent : MonoBehaviour
 
       /* allcentric place-cell set-up */
 
-      /*int _s_x = (int)Mathf.Floor(M*(transform.position.x-X_MIN)/(X_MAX-X_MIN));
-      int _s_y = (int)Mathf.Floor(N*(transform.position.z-Y_MIN)/(Y_MAX-Y_MIN));      
-
-      if(_s_x<0) {_s_x=0;}
-      else if (_s_x>M-1) _s_x=M-1;
-
-      if(_s_y<0) _s_y=0;
-      else if (_s_y>N-1) _s_y=N-1;*/
-
-      float PC_SIZE = 3.0f;
       int pc_idx=0;
       placecell = new float[NUM_PC,3];
 
-      for(float x=0.0f; x<=M; x++)
+      for(float x=0.0f; x<M; x++)
       {
-	for(float y=0.0f; y<=N; y++)
+	for(float y=0.0f; y<N; y++)
 	{
 	  placecell[pc_idx,0] = (x - M/2.0f)*PC_SIZE;// + UnityEngine.Random.Range(-2,2);
 	  placecell[pc_idx,1] = (y - N/2.0f)*PC_SIZE;// + UnityEngine.Random.Range(-2,2);
@@ -148,91 +138,84 @@ public class QAgent : MonoBehaviour
       goalObject = goal;
     }
 
-    // warning! setting velocity only gives old states, dummy!!
-    void do_smooth_action(int action, float speed_default)
-    {
-      /*var rb_velocity_local = transform.InverseTransformDirection(rb.velocity);
-	
-	if(action==7) //halt
-	{
-	  rb_velocity_local = new Vector3(0, 0, -1.0f*speed_default);
-
-	  gameObject.transform.Rotate(new Vector3(0, 0, 0) * Time.fixedDeltaTime);
-	  gameObject.transform.position += gameObject.transform.forward * (0.0F * Time.fixedDeltaTime);
-	}
-	else
-	{
-	  Debug.Log(time_per_update);
-	  float theta = action_to_angle(action) * Time.deltaTime / time_per_update;
-	  gameObject.transform.Rotate(new Vector3(0, theta, 0));	  
-	  
-	  rb_velocity_local.x = Mathf.Sin(Mathf.Deg2Rad * action_to_angle(_action));
-	  rb_velocity_local.y = 0;
-	  rb_velocity_local.z = Mathf.Cos(Mathf.Deg2Rad * action_to_angle(_action)) * speed_default;
-
-	  gameObject.transform.position += gameObject.transform.forward * (speed_default * Time.deltaTime);
-	  gameObject.transform.Rotate(new Vector3(0, action_to_angle(_action), 0)*Time.deltaTime);	  
-	}
-
-	rb.velocity = transform.TransformDirection(rb_velocity_local);*/
-    }
-
-    // instantaneous translation+rotation
-    void do_jump_action(int action, float speed_default)
-    {
-        // visualize action vectors
-        Vector3 ray_origin = AGENT_HEIGHT*Vector3.up + transform.position; 
-	Vector3 ray_vector = Quaternion.AngleAxis(egocentric_action_to_angle(_action), Vector3.up) * transform.forward;
-	//Debug.DrawRay(ray_origin, ray_vector * 2, Color.green);
-
-	var rb_velocity_local = transform.InverseTransformDirection(rb.velocity);	
-	float theta = allocentric_action_to_angle(action);
-
-	transform.rotation = Quaternion.Euler(0.0f,theta,0.0f);;	
-	gameObject.GetComponent<Rigidbody>().position += gameObject.transform.forward * (speed_default);
-    }
-
-    // Update is called once per frame
-    void Update()
-    {
-        float avgFrameRate = Time.frameCount / Time.time;
-
-        Application.targetFrameRate = frame_rate;
-        Time.timeScale = time_scale;
-    }
-
-    void FixedUpdate()
-    {
-    }
-    
-    public List<float> get_udp()
-    {
-      List<float> udp_out = new List<float>();
-      //udp_out = get_features_egocentric();
-      udp_out = get_features_allocentric();
-      udp_out.Add(get_reward());      
-      return udp_out;
-    }
+    /*---------------------------------------------------------------
+                             motor system
+    ---------------------------------------------------------------*/
 
     public void set_udp(int action)
     {
       _action = action;
 
-      if (_action >= 0 && _action < 8)
-	do_jump_action(_action, 1.0f);
+      /*if (_action >= 0 && _action < 8)
+	do_gridworld_action(_action, 1.0f); 
       else
       {
 	Debug.Log("Update Error: invalid action range..");
-	do_jump_action(3, 0.0f);	    
+	do_gridworld_action(-1, 0.0f);	    
+	}
+      */
+      
+      if (_action >= 0 && _action < 8)
+	do_jump_action(_action, 0.5f); 
+      else
+      {
+	Debug.Log("Update Error: invalid action range..");
+	do_jump_action(-1, 0.0f);	    
       }
     }
 
-    public void reset()
+    // instantaneous translation+rotation
+    void do_jump_action(int action, float speed_default)
     {
-      transform.position = new Vector3(UnityEngine.Random.Range(-9,9), 0.0f, UnityEngine.Random.Range(-9,9)); //defaultLocation;
-      transform.rotation = Quaternion.Euler(0.0f,UnityEngine.Random.Range(0,360),0.0f); //defaultPose;
+	var rb_velocity_local = transform.InverseTransformDirection(rb.velocity);	
+	float theta = egocentric_action_to_angle(action); // DEBUG
+	if(action==7) speed_default = 0.0f;
 
-      position_previous = Vector3.zero;
+        // visualize action vectors
+        Vector3 ray_origin = AGENT_HEIGHT*Vector3.up + transform.position; 
+	Vector3 ray_vector = Quaternion.AngleAxis(theta, Vector3.up) * transform.forward;
+	//Vector3 ray_vector = Quaternion.AngleAxis(theta, Vector3.up) *Vector3.forward; //allocentric
+	Debug.DrawRay(ray_origin, ray_vector*3*speed_default, Color.green);
+
+	//transform.rotation = Quaternion.Euler(0.0f,theta,0.0f); //global rotate 	
+	gameObject.transform.Rotate(new Vector3(0, theta, 0));  //local rotate
+	gameObject.GetComponent<Rigidbody>().position += gameObject.transform.forward * (speed_default);
+	gameObject.GetComponent<Rigidbody>().velocity = Vector3.zero;
+
+    }
+
+    // instantaneous translation+rotation
+    void do_gridworld_action(int action, float speed_default)
+    {
+	float theta = allocentric_action_to_angle(action);
+
+        // visualize action vectors
+        Vector3 ray_origin = AGENT_HEIGHT*Vector3.up + transform.position; 
+	//Vector3 ray_vector = Quaternion.AngleAxis(theta, Vector3.up) * transform.forward;
+	Vector3 ray_vector = Quaternion.AngleAxis(theta, Vector3.up) *Vector3.forward;
+	Debug.DrawRay(ray_origin, ray_vector*3*speed_default, Color.green);
+
+	transform.rotation = Quaternion.Euler(0.0f,theta,0.0f);
+
+	Vector3 gridworld_action = new Vector3(action_to_gridworld_movement(action)[0],0,action_to_gridworld_movement(action)[1]);
+	gameObject.GetComponent<Rigidbody>().transform.Translate(gridworld_action*PC_SIZE, Space.World);
+    }
+
+    /*---------------------------------------------------------------
+                             sensory system
+    ---------------------------------------------------------------*/
+
+    public List<float> get_udp()
+    {
+      List<float> udp_out = new List<float>();
+      
+      udp_out.AddRange(get_features_allocentric());     
+      udp_out.AddRange(get_features_egocentric());
+      udp_out.Add(get_reward_goal());
+      udp_out.Add(get_reward_collision());      
+      udp_out.Add(transform.localEulerAngles.y); //heading direction
+      
+      return udp_out;
     }
 
     public Vector3 get_velocity()
@@ -248,6 +231,7 @@ public class QAgent : MonoBehaviour
     void cast_ray()
     {
       colorList.Clear();
+      
       // cast a ray around the agent 
       RaycastHit[] hits;
 
@@ -270,16 +254,15 @@ public class QAgent : MonoBehaviour
 	for (int i=0; i<hits.Length; i++)
 	{	    
 	  RaycastHit hit = hits[i];
-	  
+
+	  if(hits[i].collider.gameObject.tag!="pedestrian") // if not another agent
+	   continue;
+	    
 	  Vector3 velocity_obstacle = hits[i].collider.gameObject.GetComponent<QAgent>().get_velocity();
 	  Vector3 velocity_relative = velocity_obstacle - get_velocity();
 	  int relative_angle_idx = (int)Mathf.Round(Vector3.Angle(velocity_relative, transform.forward)/36);
 
 	  state_array[angle_to_sector(ray_angle),distance_to_annulus(hit.distance),relative_angle_idx] = 1.0f; //hits[i].distance;
-
-	  Debug.DrawRay(ray_origin, velocity_relative, Color.red);
-	  
-	  //Debug.Log(Vector3.Angle(velocity_relative, transform.forward));
 
 	  colorList.Add(new Vector2(distance_to_annulus(hit.distance), angle_id(ray_angle)));
 	}
@@ -298,12 +281,165 @@ public class QAgent : MonoBehaviour
 	float dis2 = transform.position.z - placecell[pc_idx,1];
 	placecell[pc_idx,2] = Mathf.Round(Mathf.Exp(-(dis1*dis1+dis2*dis2)/2/sigma/sigma)*100)/100;
 
-	if(placecell[pc_idx,2]<0.2f) placecell[pc_idx,2]=0.0f; //WARNING clipping approximation
-	
 	Debug.DrawRay(new Vector3(placecell[pc_idx,0], 0.0f, placecell[pc_idx,1]), Vector3.up, Color.red);
       }
     }
 
+      List<float> code_placecells()
+    {
+      //TODO DEBUG
+      
+      List<float> phi = new List<float>(); 
+
+      // ORIGINAL PLACE CELL
+      /*for(int pc_idx=0; pc_idx<NUM_PC; pc_idx++)
+	phi.Add(placecell[pc_idx,2]);            
+      */
+      
+      // NEAREST PLACE CELL
+      int nearest_pc_idx = 0;
+      for(int pc_idx=0; pc_idx<NUM_PC; pc_idx++)
+      {
+	if(placecell[pc_idx,2]>placecell[nearest_pc_idx,2])
+	  nearest_pc_idx = pc_idx;	  
+      }
+
+      phi.Add(nearest_pc_idx);
+      //phi.Add(1);
+
+      Debug.DrawRay(new Vector3(placecell[nearest_pc_idx,0], 0.0f, placecell[nearest_pc_idx,1]) + Vector3.up,		      
+		    Vector3.up*1.0f,
+		    Color.green);	
+
+      return phi;
+    }
+
+    /* ---------------------
+       convert agent state to features {#entries, unitIdx_obs1, unitIdx_obs2,..}
+       egocentric
+    ----------------------- */
+    List<float> code_feature()
+    {
+      List<float> phi = new List<float>();
+
+      for(int annulus=0; annulus<radius_annulus.Length; annulus++)
+      {
+	for(int sector=0; sector<angle_sector.Length-1; sector++)
+	{
+	  for(int relative_angle_idx=0; relative_angle_idx<10; relative_angle_idx++)
+	  {
+	    if(state_array[sector,annulus,relative_angle_idx] > 0.0f)
+	    {
+	      phi.Add(sector + annulus*(angle_sector.Length-1) + relative_angle_idx*(angle_sector.Length-1)*(radius_annulus.Length));
+	    }
+	  }
+	}
+      }
+      return phi;
+    }
+
+   /* --------------------
+       get feature (sector x ring x agent_vel_dir, encoded, allocentric)       
+    --------------------- */
+    List<float> get_features_allocentric()
+    {
+        simulate_hippocampus();
+        return code_placecells();
+    }
+
+    /* --------------------
+       get feature (sector x ring x agent_vel_dir, encoded, egocentric)       
+    --------------------- */
+    List<float> get_features_egocentric()
+    {
+        cast_ray();
+        get_color_list();
+        return code_feature();
+    }
+
+    /*---------------------------------------------------------------
+                                 reward system
+    ---------------------------------------------------------------*/
+
+    void OnTriggerEnter(Collider col)
+    {
+      if(col.gameObject == goalObject)
+      {
+	if (turnOnTriangleIndicator)
+	  show_collision.TriggerIndicator();
+	
+	reward_goal = 1.0f;
+      }      
+      
+      if(col.gameObject.tag == "pedestrian")
+      {
+	if (turnOnTriangleIndicator)
+	  show_collision.TriggerIndicator();
+	
+	reward_collision = -1.0f;
+      }
+    }
+
+    void OnTriggerExit(Collider col)
+    {
+      if(col.gameObject == goalObject)
+      {
+	if (turnOnTriangleIndicator)
+	  show_collision.UntriggerIndicator();
+	
+	reward_goal = 0.0f;
+      }
+      
+      if(col.gameObject.tag == "pedestrian")
+      {
+	if (turnOnTriangleIndicator)
+	  show_collision.UntriggerIndicator();
+	
+	reward_collision = 0.0f;
+      } 
+    }
+
+    float get_reward_goal()
+    {      
+      return reward_goal;
+    }
+
+    float get_reward_collision()
+    {      
+      return reward_collision;
+    }
+
+    /*---------------------------------------------------------------
+                                 update
+    ---------------------------------------------------------------*/
+
+    // Update is called once per frame
+    void Update()
+    {
+        float avgFrameRate = Time.frameCount / Time.time;
+
+        Application.targetFrameRate = frame_rate;
+        Time.timeScale = time_scale;
+    }
+
+    void FixedUpdate()
+    {
+    }
+
+    public void reset()
+    {
+      transform.position = defaultLocation ;// new Vector3(UnityEngine.Random.Range(-10,10),0,UnityEngine.Random.Range(-10,10)); //defaultLocation;
+      transform.rotation = Quaternion.Euler(0.0f,UnityEngine.Random.Range(0,360),0.0f); //defaultPose;
+
+      reward_goal = 0.0f; reward_collision = 0.0f;
+      
+      position_previous = Vector3.zero;
+    }
+  
+    /*---------------------------------------------------------------
+                             utility files
+    ---------------------------------------------------------------*/
+    
     void OnDrawGizmosSelected()
     {
       Gizmos.color = Color.yellow;
@@ -341,141 +477,9 @@ public class QAgent : MonoBehaviour
         return color_angle_sector;
     }
 
-    List<float> code_placecells()
-    {
-      //TODO DEBUG
-      
-      List<float> phi = new List<float>(); 
-
-      // ORIGINAL PLACE CELL
-      /*for(int pc_idx=0; pc_idx<NUM_PC; pc_idx++)
-	phi.Add(placecell[pc_idx,2]);            
-      */
-      
-      // NEAREST PLACE CELL
-      int nearest_pc_idx = 0;
-      for(int pc_idx=0; pc_idx<NUM_PC; pc_idx++)
-      {
-	if(placecell[pc_idx,2]>placecell[nearest_pc_idx,2])
-	  nearest_pc_idx = pc_idx;	  
-      }
-
-      for(int pc_idx=0; pc_idx<NUM_PC; pc_idx++)	
-	if(pc_idx == nearest_pc_idx)
-	  phi.Add(1);
-	else
-	  phi.Add(0);            
-
-      for(int pc_idx=0; pc_idx<NUM_PC; pc_idx++)
-	Debug.DrawRay(new Vector3(placecell[pc_idx,0], 0.0f, placecell[pc_idx,1]) + Vector3.up,		      
-		    Vector3.up*phi[pc_idx],
-		    Color.green);	
-
-      /*int _s_x = (int)Mathf.Floor(M*(transform.position.x+15.0f)/30.0f);
-      int _s_y = (int)Mathf.Floor(N*(transform.position.z+15.0f)/30.0f);      
-
-      if(_s_x<0) {_s_x=0;}
-      else if (_s_x>M-1) _s_x=(int)M-1;
-
-      if(_s_y<0) _s_y=0;
-      else if (_s_y>N-1) _s_y=(int)N-1;
-      */
-      
-      return phi;
-    }
-
-    /* --------------------
-       convert agent direction into place-cell state representations
-       egocentric
-    --------------------- */
-    int code_state_pole()
-    {
-      int pose = ((int) (transform.rotation.eulerAngles.y/10.0));
-      return pose;
-    }
-
-    /* ---------------------
-       convert agent state to features {#entries, unitIdx_obs1, unitIdx_obs2,..}
-       egocentric
-    ----------------------- */
-    List<int> code_feature()
-    {
-      List<int> phi = new List<int>();
-
-      for(int annulus=0; annulus<radius_annulus.Length; annulus++)
-      {
-	for(int sector=0; sector<angle_sector.Length-1; sector++)
-	{
-	  for(int relative_angle_idx=0; relative_angle_idx<10; relative_angle_idx++)
-	  {
-	    if(state_array[sector,annulus,relative_angle_idx] > 0.0f)
-	    {
-	      phi.Add(sector + annulus*(angle_sector.Length-1) + relative_angle_idx*(angle_sector.Length-1)*(radius_annulus.Length));
-	      //phi.Add(sector+annulus*(angle_sector.Length-1));
-	    }
-	  }
-	}
-      }
-      return phi;
-    }
-
-
-   /* --------------------
-       get feature (sector x ring x agent_vel_dir, encoded, allocentric)       
-    --------------------- */
-    List<float> get_features_allocentric()
-    {
-        simulate_hippocampus();
-        return code_placecells();
-    }
-
-    /* --------------------
-       get feature (sector x ring x agent_vel_dir, encoded, egocentric)       
-    --------------------- */
-    List<int> get_features_egocentric()
-    {
-        cast_ray();
-        get_color_list();
-        return code_feature();
-    }
-
-    /* ------------------------
-        get reward
-    ----------------------------*/
-    void OnTriggerEnter(Collider col)
-    {
-      //Debug.Log("Collision +"+col.gameObject.name);
-
-      if(col.gameObject == goalObject)
-      {
-	if (turnOnTriangleIndicator)
-	  show_collision.TriggerIndicator();
-	
-	reward = 1.0f;
-      }
-    }
-
-    void OnTriggerExit(Collider col)
-    {
-      if(col.gameObject == goalObject)
-      {
-	if (turnOnTriangleIndicator)
-	  show_collision.UntriggerIndicator();
-	
-	reward = 0.0f;
-      }
-    }
-
-    float get_reward()
-    {      
-      return reward;
-    }
-
     /* utilities: ray angle to sector index */
     int angle_to_sector(int angle)
     {
-      // angle_sector = new int[] {-105,-95,-85,-75,-65,-55,-45,-35,-25,-15,-5,5,15,25,35,45,55,65,75,85,95,105,255};
-
       for(int sector = 0; sector < angle_sector.Length-1; sector++)
       {
 	if (angle > angle_sector[sector] && angle <= angle_sector[sector+1])
@@ -487,8 +491,6 @@ public class QAgent : MonoBehaviour
     /* utilities: ray angle to sector index */
     int distance_to_annulus(float dist)
     {
-      // radius_annulus = new float[] {5.0f,10.0f,15.0f,20.0f};
-
       for(int annulus = 0; annulus < radius_annulus.Length; annulus++)
       {
 	if (dist <= radius_annulus[annulus])
@@ -523,6 +525,19 @@ public class QAgent : MonoBehaviour
         else if (actionIndex == 6)            return 135.0f;
 	else if (actionIndex == 7)            return 180.0f;
 	else return -1.0f;
+    }
+
+    List<int> action_to_gridworld_movement(int actionIndex)
+    {
+      if (actionIndex == 0)                 return (new List<int>{-1,-1}); //-135.0f;
+      else if (actionIndex == 1)            return (new List<int>{-1,0}); //-90.0f;
+      else if (actionIndex == 2)            return (new List<int>{-1,1}); //-45.0f;
+      else if (actionIndex == 3)            return (new List<int>{0,1}); //0.0f;
+      else if (actionIndex == 4)            return (new List<int>{1,1}); //45.0f;
+      else if (actionIndex == 5)            return (new List<int>{1,0}); //90.0f;
+      else if (actionIndex == 6)            return (new List<int>{1,-1}); //135.0f;
+      else if (actionIndex == 7)            return (new List<int>{0,-1}); //180.0f;
+      else return (new List<int> {0,0});      
     }
 
     public void turn_triangle_indicator(bool flag)
