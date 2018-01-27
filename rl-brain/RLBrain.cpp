@@ -269,23 +269,12 @@ class qbrain
     for(int action_idx=0; action_idx<_action_size; action_idx++)
     {
       if(_tag=="collide")
-	_policy[action_idx] = exp(-_qvalue[action_idx]/1.0);
+	_policy[action_idx] = exp(_qvalue[action_idx]*50.0);
       else if(_tag=="goal")
-	_policy[action_idx] = exp(_qvalue[action_idx]/1.0);
+	_policy[action_idx] = exp(_qvalue[action_idx]*0.1);
 	
       _policy_sum += _policy[action_idx];
     }
-
-    /*if(_tag=="collide")
-    {
-      printf("\nPI_COLLIDE[");
-      for(int action_idx=0; action_idx<_action_size; action_idx++)
-	{
-	  printf("%0.2f,",_policy[action_idx]);    
-	}
-      printf("]");
-      //printf("%d",action);
-    }*/
 
     if(_policy_sum==0)
       return _policy;
@@ -293,6 +282,18 @@ class qbrain
     for(int action_idx=0; action_idx<_action_size; action_idx++)
     {
       _policy[action_idx] /= _policy_sum;
+    }
+
+    if(_VERBOSE_UDP)
+    {
+      if(_tag=="collide") printf("\nPI_COLLIDE,%f[",_policy_sum);
+      if(_tag=="goal") printf("\nPI_GOAL:%f[",_policy_sum);
+      for(int action_idx=0; action_idx<_action_size; action_idx++)
+	{
+	  printf("%0.2f,",_policy[action_idx]);    
+	}
+      printf("]");
+      //printf("%d",action);
     }
         
     return _policy;

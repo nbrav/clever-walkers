@@ -168,7 +168,7 @@ public class QAgent : MonoBehaviour
     void do_jump_action(int action, float speed_default)
     {
 	var rb_velocity_local = transform.InverseTransformDirection(rb.velocity);	
-	float theta = egocentric_action_to_angle(action); // DEBUG
+	float theta = allocentric_action_to_angle(action);
 	if(action==7) speed_default = 0.0f;
 
         // visualize action vectors
@@ -185,7 +185,7 @@ public class QAgent : MonoBehaviour
     }
 
     // instantaneous translation+rotation
-    void do_gridworld_action(int action, float speed_default)
+    /*void do_gridworld_action(int action, float speed_default)
     {
 	float theta = allocentric_action_to_angle(action);
 
@@ -199,7 +199,7 @@ public class QAgent : MonoBehaviour
 
 	Vector3 gridworld_action = new Vector3(action_to_gridworld_movement(action)[0],0,action_to_gridworld_movement(action)[1]);
 	gameObject.GetComponent<Rigidbody>().transform.Translate(gridworld_action*PC_SIZE, Space.World);
-    }
+    }*/
 
     /*---------------------------------------------------------------
                              sensory system
@@ -500,7 +500,7 @@ public class QAgent : MonoBehaviour
     }
 
     /* utilities: get angle from action coding */
-    float egocentric_action_to_angle(int actionIndex)
+    /*float egocentric_action_to_angle(int actionIndex)
     {
         if (actionIndex == 0)                 return -45.0f;
         else if (actionIndex == 1)            return -30.0f;
@@ -511,23 +511,27 @@ public class QAgent : MonoBehaviour
         else if (actionIndex == 6)            return 45.0f;
 	else if (actionIndex == 7)            return 0.0f;
 	else return -1.0f;
-    }
+    }*/
 
     /* utilities: get angle from action coding */
     float allocentric_action_to_angle(int actionIndex)
     {
-        if (actionIndex == 0)                 return -135.0f;
-        else if (actionIndex == 1)            return -90.0f;
-        else if (actionIndex == 2)            return -45.0f;
-        else if (actionIndex == 3)            return 0.0f;
-        else if (actionIndex == 4)            return 45.0f;
-        else if (actionIndex == 5)            return 90.0f;
-        else if (actionIndex == 6)            return 135.0f;
-	else if (actionIndex == 7)            return 180.0f;
+        if      (actionIndex == 0)            return -150.0f;
+        else if (actionIndex == 1)            return -120.0f;
+        else if (actionIndex == 2)            return -90.0f;
+        else if (actionIndex == 3)            return -60.0f;
+        else if (actionIndex == 4)            return -30.0f;
+        else if (actionIndex == 5)            return 0.0f;
+        else if (actionIndex == 6)            return 30.0f;
+        else if (actionIndex == 7)            return 60.0f;
+        else if (actionIndex == 8)            return 90.0f;
+        else if (actionIndex == 9)            return 120.0f;
+        else if (actionIndex == 10)            return 150.0f;
+	else if (actionIndex == 11)            return 180.0f;
 	else return -1.0f;
     }
 
-    List<int> action_to_gridworld_movement(int actionIndex)
+    /*List<int> action_to_gridworld_movement(int actionIndex)
     {
       if (actionIndex == 0)                 return (new List<int>{-1,-1}); //-135.0f;
       else if (actionIndex == 1)            return (new List<int>{-1,0}); //-90.0f;
@@ -538,7 +542,7 @@ public class QAgent : MonoBehaviour
       else if (actionIndex == 6)            return (new List<int>{1,-1}); //135.0f;
       else if (actionIndex == 7)            return (new List<int>{0,-1}); //180.0f;
       else return (new List<int> {0,0});      
-    }
+    }*/
 
     public void turn_triangle_indicator(bool flag)
     {
