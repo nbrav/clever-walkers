@@ -355,6 +355,6 @@ public class PopulateScene : MonoBehaviour
   
     void OnGUI ()
     {
-      tring = GUI.TextField (new Rect (50, 50, 450, 150), display_string);
+      //tring = GUI.TextField (new Rect (50, 50, 450, 150), display_string);
     }
 }

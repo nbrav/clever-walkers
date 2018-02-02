@@ -3,9 +3,9 @@
 #define BUFSIZE 2048
 #define CLOCK_PRECISION 1E9
 
-#define ACTION_SELECTION_ONLY false
+#define ACTION_SELECTION_ONLY true
 
-#define HALTING_ACTION 9
+#define HALTING_ACTION 12
 
 #define UNITY_IP "0.0.0.0" // enter your PC IP here
 #define THIS_IP "127.0.0.1" // use if running Brain & Unity in same system
@@ -128,8 +128,9 @@ int main(int argc, char **argv)
 
 	      if(ACTION_SELECTION_ONLY)
 	      {
-		brain_goal._epsilon=1.0;
-		global_epsilon = 1.0;
+		brain_goal._epsilon=0.9;
+		global_epsilon = 0.9;
+		brain_goal.trial_log(float(reward_goal_trial)); brain_collide.trial_log(float(reward_collide_trial));
 	      }
 	      else
 	      {
@@ -139,9 +140,8 @@ int main(int argc, char **argv)
 		}
 		else if(trial_idx%10==1)
 		{
-		  brain_goal.trial_log(float(reward_goal_trial)); brain_collide.trial_log(float(reward_collide_trial));		  
-		  brain_goal._epsilon=0.7; brain_collide._epsilon=0.7;	global_epsilon = 0.7;
-	
+		  		  
+		  brain_goal._epsilon=0.7; brain_collide._epsilon=0.7;	global_epsilon = 0.7;	
 		}
 		else
 		{
@@ -201,23 +201,18 @@ int main(int argc, char **argv)
 	  msgcnt++;
 
 	  // a' ~ Q(.|s',A)
-	  // get policy from each brain
-	  // pass to new class acton_selection with heading direction, that will handle projects
-
-	  // COMBINED ACTION
 	  policy_goal = brain_goal.get_policy(num_phi_goal,phi_goal);
 	  policy_collide = brain_collide.get_policy(num_phi_collide,phi_collide);
-	  action = action_selection(policy_goal, policy_collide, heading_direction, global_epsilon);
+	  auto action_tuple = action_selection(policy_goal, policy_collide, heading_direction, global_epsilon);
 
-	  // INDIVIDUAL ACTION
-	  //action = brain_goal.get_action(num_phi_goal,phi_goal);
-	  //action = brain_collide.get_action(num_phi_collide, phi_collide); 
-	  
+	  action = std::get<0>(action_tuple);
+	  int action_collide = std::get<1>(action_tuple);
+
 	  // w += alpha*(r'+gamma*q(s',a')-q(s,a))
 	  if(!ACTION_SELECTION_ONLY)
 	  {
 	    //brain_goal.advance_timestep(num_phi_goal, phi_goal, action, reward_goal, timestep);
-	    brain_collide.advance_timestep(num_phi_collide, phi_collide, action, reward_collide, timestep);
+	    brain_collide.advance_timestep(num_phi_collide, phi_collide, action_collide, reward_collide, timestep);
 	  }
 	  
 	  // s = s'
@@ -226,7 +221,7 @@ int main(int argc, char **argv)
 	    
 	  // a = a'
 	  brain_goal.set_action(action);
-	  brain_collide.set_action(action);
+	  brain_collide.set_action(action_collide);
 	  
 	  timestep++;	    
 	}

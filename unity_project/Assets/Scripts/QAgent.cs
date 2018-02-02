@@ -22,7 +22,7 @@ public class QAgent : MonoBehaviour
 
     // ego-centric state-space parameters
     float[,,] state_array;
-    float[] radius_annulus = new float[] {5.0f,10.0f,15.0f,20.0f};
+    float[] radius_annulus = new float[] {2.5f,5.0f,7.5f,10.0f};
     int[] angle_sector = new int[] {0,15,30,45,60,75,90,105,120,135,150,165,180,195,210,225,240,255,270,285,300,315,330,345,360};
 
     // allo-centric state-space parameters
@@ -152,8 +152,7 @@ public class QAgent : MonoBehaviour
       {
 	Debug.Log("Update Error: invalid action range..");
 	do_gridworld_action(-1, 0.0f);	    
-	}
-      */
+      }*/
       
       if (_action >= 0 && _action < 8)
 	do_jump_action(_action, 0.5f); 
@@ -167,39 +166,46 @@ public class QAgent : MonoBehaviour
     // instantaneous translation+rotation
     void do_jump_action(int action, float speed_default)
     {
-	var rb_velocity_local = transform.InverseTransformDirection(rb.velocity);	
-	float theta = allocentric_action_to_angle(action);
-	if(action==7) speed_default = 0.0f;
+      	var rb_velocity_local = transform.InverseTransformDirection(rb.velocity);	
+	float theta = allocentric_action_to_angle(action); //transform.localEulerAngles.y +
+	if(action==8) speed_default = 0.0f; //HALTING ACTION
 
         // visualize action vectors
-        Vector3 ray_origin = AGENT_HEIGHT*Vector3.up + transform.position; 
-	Vector3 ray_vector = Quaternion.AngleAxis(theta, Vector3.up) * transform.forward;
+        //Vector3 ray_origin = AGENT_HEIGHT*Vector3.up + transform.position; 
+	//Vector3 ray_vector = Quaternion.AngleAxis(theta, Vector3.up) * transform.forward; //egocentric
 	//Vector3 ray_vector = Quaternion.AngleAxis(theta, Vector3.up) *Vector3.forward; //allocentric
-	Debug.DrawRay(ray_origin, ray_vector*3*speed_default, Color.green);
-
-	//transform.rotation = Quaternion.Euler(0.0f,theta,0.0f); //global rotate 	
-	gameObject.transform.Rotate(new Vector3(0, theta, 0));  //local rotate
+	//Debug.DrawRay(ray_origin, ray_vector*3*speed_default, Color.green);
+	  
+	transform.rotation = Quaternion.Euler(0.0f,theta,0.0f); //global rotate 	
+	//gameObject.transform.Rotate(new Vector3(0, theta, 0));  //local rotate
 	gameObject.GetComponent<Rigidbody>().position += gameObject.transform.forward * (speed_default);
 	gameObject.GetComponent<Rigidbody>().velocity = Vector3.zero;
-
     }
 
     // instantaneous translation+rotation
-    /*void do_gridworld_action(int action, float speed_default)
+    void do_gridworld_action(int action, float speed_default)
     {
-	float theta = allocentric_action_to_angle(action);
+        float theta = allocentric_action_to_angle(action);
 
         // visualize action vectors
         Vector3 ray_origin = AGENT_HEIGHT*Vector3.up + transform.position; 
 	//Vector3 ray_vector = Quaternion.AngleAxis(theta, Vector3.up) * transform.forward;
-	Vector3 ray_vector = Quaternion.AngleAxis(theta, Vector3.up) *Vector3.forward;
+	Vector3 ray_vector = Quaternion.AngleAxis(theta, Vector3.up)*Vector3.forward;
 	Debug.DrawRay(ray_origin, ray_vector*3*speed_default, Color.green);
 
+	Vector3 temp_position = gameObject.GetComponent<Rigidbody>().transform.position;
+	Quaternion temp_rotation = gameObject.GetComponent<Rigidbody>().transform.rotation; 
+	  
 	transform.rotation = Quaternion.Euler(0.0f,theta,0.0f);
-
 	Vector3 gridworld_action = new Vector3(action_to_gridworld_movement(action)[0],0,action_to_gridworld_movement(action)[1]);
 	gameObject.GetComponent<Rigidbody>().transform.Translate(gridworld_action*PC_SIZE, Space.World);
-    }*/
+	
+	if(Mathf.Abs(transform.position.x)>=M/2.0f*PC_SIZE || Mathf.Abs(transform.position.z)>=N/2.0f*PC_SIZE)
+	{
+	  transform.position = temp_position;
+	  transform.rotation = temp_rotation;
+	}
+    }
 
     /*---------------------------------------------------------------
                              sensory system
@@ -307,7 +313,7 @@ public class QAgent : MonoBehaviour
       phi.Add(nearest_pc_idx);
       //phi.Add(1);
 
-      Debug.DrawRay(new Vector3(placecell[nearest_pc_idx,0], 0.0f, placecell[nearest_pc_idx,1]) + Vector3.up,		      
+      Debug.DrawRay(new Vector3(placecell[nearest_pc_idx,0], 0.0f, placecell[nearest_pc_idx,1])+Vector3.up,		      
 		    Vector3.up*1.0f,
 		    Color.green);	
 
@@ -428,7 +434,7 @@ public class QAgent : MonoBehaviour
 
     public void reset()
     {
-      transform.position = defaultLocation ;// new Vector3(UnityEngine.Random.Range(-10,10),0,UnityEngine.Random.Range(-10,10)); //defaultLocation;
+      transform.position = new Vector3(UnityEngine.Random.Range(-10,10),0,UnityEngine.Random.Range(-10,10)); //defaultLocation;
       transform.rotation = Quaternion.Euler(0.0f,UnityEngine.Random.Range(0,360),0.0f); //defaultPose;
 
       reward_goal = 0.0f; reward_collision = 0.0f;
@@ -516,22 +522,18 @@ public class QAgent : MonoBehaviour
     /* utilities: get angle from action coding */
     float allocentric_action_to_angle(int actionIndex)
     {
-        if      (actionIndex == 0)            return -150.0f;
-        else if (actionIndex == 1)            return -120.0f;
-        else if (actionIndex == 2)            return -90.0f;
-        else if (actionIndex == 3)            return -60.0f;
-        else if (actionIndex == 4)            return -30.0f;
-        else if (actionIndex == 5)            return 0.0f;
-        else if (actionIndex == 6)            return 30.0f;
-        else if (actionIndex == 7)            return 60.0f;
-        else if (actionIndex == 8)            return 90.0f;
-        else if (actionIndex == 9)            return 120.0f;
-        else if (actionIndex == 10)            return 150.0f;
-	else if (actionIndex == 11)            return 180.0f;
+        if      (actionIndex == 0)            return -135.0f;
+        else if (actionIndex == 1)            return -90.0f;
+        else if (actionIndex == 2)            return -45.0f;
+        else if (actionIndex == 3)            return 0.0f;
+        else if (actionIndex == 4)            return 45.0f;
+        else if (actionIndex == 5)            return 90.0f;
+        else if (actionIndex == 6)            return 135.0f;
+        else if (actionIndex == 7)            return 180.0f;
 	else return -1.0f;
     }
 
-    /*List<int> action_to_gridworld_movement(int actionIndex)
+    List<int> action_to_gridworld_movement(int actionIndex)
     {
       if (actionIndex == 0)                 return (new List<int>{-1,-1}); //-135.0f;
       else if (actionIndex == 1)            return (new List<int>{-1,0}); //-90.0f;
@@ -542,7 +544,7 @@ public class QAgent : MonoBehaviour
       else if (actionIndex == 6)            return (new List<int>{1,-1}); //135.0f;
       else if (actionIndex == 7)            return (new List<int>{0,-1}); //180.0f;
       else return (new List<int> {0,0});      
-    }*/
+    }
 
     public void turn_triangle_indicator(bool flag)
     {

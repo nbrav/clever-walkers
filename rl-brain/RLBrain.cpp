@@ -269,9 +269,9 @@ class qbrain
     for(int action_idx=0; action_idx<_action_size; action_idx++)
     {
       if(_tag=="collide")
-	_policy[action_idx] = exp(_qvalue[action_idx]*50.0);
+	_policy[action_idx] = exp(_qvalue[action_idx]*1.5);
       else if(_tag=="goal")
-	_policy[action_idx] = exp(_qvalue[action_idx]*0.1);
+	_policy[action_idx] = exp(_qvalue[action_idx]*0.5);
 	
       _policy_sum += _policy[action_idx];
     }
@@ -316,7 +316,7 @@ class qbrain
 	_qvalue[action_idx] += _w[0][phi[idx]][action_idx];
 
     // a_t^greedy = argmax_a q_cap(s_t,a)
-    int greedy_action = rand()%_action_size;;
+    int greedy_action = rand()%_action_size;
 
     for(int action_idx=0; action_idx<_action_size; action_idx++)
       if(_qvalue[action_idx]>_qvalue[greedy_action])
@@ -328,7 +328,7 @@ class qbrain
     else // explore
       action = rand()%_action_size;
 
-   return action;
+    return action;
   }
 
   /*------------- Update rules ----------*/
@@ -344,25 +344,37 @@ class qbrain
       //_etrace[reward_idx][_state][_action] = 1.0;
   }
 
-  void update_w()
+  void update_w(bool off_policy)
   {
     // TODO: add eligibility trace
 
-    // get max Q(s',A)
-    float max_qprime=-999.0;
-    for(int action_idx=0; action_idx<_action_size; action_idx++)
-      if(get_qvalue(_num_phi_prime,_phi_prime,action_idx) > max_qprime)
-	max_qprime = get_qvalue(_num_phi_prime,_phi_prime,action_idx);
+    // releasing dopamine
+    // delta_t = r_{t+1} + gamma*q(phi(s_{t+1}),a_{t+1}) - q(phi(s_t),a_t);
     
-    for (int reward_idx=0; reward_idx<_reward_size; reward_idx++)
-    {      
-      // releasing dopamine
-      // delta_t = r_{t+1} + gamma*q(phi(s_{t+1}),a_{t+1}) - q(phi(s_t),a_t);
-      _rpe[reward_idx] = _reward[reward_idx]
-	+ _gamma[reward_idx] * max_qprime
-      	- get_qvalue(_num_phi, _phi, _action);
+    // get max Q(s',A)
+    if(off_policy)
+    {
+      float max_qprime=-999.0;
+      for(int action_idx=0; action_idx<_action_size; action_idx++)
+	if(get_qvalue(_num_phi_prime,_phi_prime,action_idx) > max_qprime)
+	  max_qprime = get_qvalue(_num_phi_prime,_phi_prime,action_idx);
+
+      for (int reward_idx=0; reward_idx<_reward_size; reward_idx++)
+      {      
+	_rpe[reward_idx] = _reward[reward_idx]
+	  + _gamma[reward_idx] * max_qprime
+	  - get_qvalue(_num_phi, _phi, _action);
+      }
     }
-    //DEBUGGING * get_qvalue(_num_phi_prime, _phi_prime, _action_prime)
+    else
+    {
+      for (int reward_idx=0; reward_idx<_reward_size; reward_idx++)
+      {      
+	_rpe[reward_idx] = _reward[reward_idx]
+	  + _gamma[reward_idx] * get_qvalue(_num_phi_prime, _phi_prime, _action_prime)
+	  - get_qvalue(_num_phi, _phi, _action);
+      }      
+    }
     
     // cortico-striatal learning
     // _w(phi(s_t,a_t)) += alpha*delta*phi(s_t,a_t)
@@ -370,7 +382,7 @@ class qbrain
       for(int idx=0; idx<_num_phi && _phi[idx]<_state_size; idx++)
 	_w[reward_idx][_phi[idx]][_action] += _alpha*_rpe[reward_idx]; //_etrace[reward_idx][state_idx][action_idx];    */
 
-    if(false) //_VERBOSE_UDP && _tag=="collide")
+    if(_VERBOSE_UDP && _tag=="collide")
     {
       printf("\n{AGIDX:%d T:%d eps:%0.1f LOG:%d ",_rank,_time,_epsilon,_is_test_trial);
       printf("S:(");
@@ -413,7 +425,7 @@ class qbrain
       return;
    
     //update_etrace();
-    update_w();
+    update_w(false);
 
     //reward_log();
     //state_log();
