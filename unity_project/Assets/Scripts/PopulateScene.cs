@@ -108,7 +108,6 @@ public class PopulateScene : MonoBehaviour
     {
       IPEndPoint sender;
       EndPoint Remote;
-      display_string = "";
       
       Time.timeScale = LearningTimeScale;
       FixedUpdateIndex++;
@@ -132,7 +131,9 @@ public class PopulateScene : MonoBehaviour
 	  
       // execute brain update
       try
-      {	
+      {
+	display_string = "";
+
 	// receive all action
 	for(int idx=0; idx<numOfWalkers; idx++)
 	{
@@ -145,7 +146,7 @@ public class PopulateScene : MonoBehaviour
 	  
 	  socket[idx].ReceiveFrom(data_in,sizeof(int),0,ref Remote);	
 	  int action = System.BitConverter.ToInt32(data_in, 0);
-	  
+      	  
 	  // if local reset
 	  if(reset_counter[idx]<=0.0f && global_reset!=0.0f)
 	  {
@@ -205,9 +206,9 @@ public class PopulateScene : MonoBehaviour
 	  display_string += "COUNTER "+reset_counter[idx].ToString()+","+global_reset.ToString();
 	  display_string += " (A:"+action.ToString();
 	  display_string += ")-->(S':";
-	  //for(int obstacle_index=0; obstacle_index<state_reward.Count;obstacle_index++)
-	  //  display_string += " "+state_reward[obstacle_index].ToString();
-	  display_string += "..,"+state_reward[state_reward.Count-3].ToString();
+	  for(int obstacle_index=0; obstacle_index<state_reward.Count;obstacle_index++)
+	    display_string += " "+state_reward[obstacle_index].ToString();
+	  display_string += "&"+state_reward[state_reward.Count-3].ToString();
 	  display_string += ","+state_reward[state_reward.Count-2].ToString();
 	  display_string += ")";	  
 	  display_string += "\n";
@@ -355,6 +356,6 @@ public class PopulateScene : MonoBehaviour
   
     void OnGUI ()
     {
-      //tring = GUI.TextField (new Rect (50, 50, 450, 150), display_string);
+      tring = GUI.TextField (new Rect (50, 50, 750, 150), display_string);
     }
 }

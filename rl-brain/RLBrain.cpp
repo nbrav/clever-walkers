@@ -20,6 +20,7 @@ class qbrain
   std::vector< float > _gamma; // Discount factor for Q
   float _epsilon;              // Greedy arbitration exploration
   float _lambda;               // Eligibility decay
+  float _tau;                  // Boltzmann constant
   string _tag="def";
   
   int _state_size;
@@ -31,7 +32,8 @@ class qbrain
   int _rank;
 
   // state
-  int *_phi, *_phi_prime;
+  int *_phi_idx, *_phi_prime_idx;
+  float *_phi_val, *_phi_prime_val;
   int _num_phi, _num_phi_prime;    
   int* _state;
   int _state_prime;
@@ -75,14 +77,15 @@ class qbrain
     float gaussian[] = {0.1,0.2,0.4,0.7,0.4,0.2,0.1,0.1};
 
     _state = new int[_state_size];
-    _phi = new int[_state_size]; _num_phi=0;
-    _phi_prime = new int [_state_size]; _num_phi_prime=0;
+    
+    _num_phi=0; _phi_idx = new int[_state_size]; _phi_val = new float[_state_size];    
+    _num_phi_prime=0; _phi_prime_idx = new int [_state_size]; _phi_prime_val = new float[_state_size];
 
     for(int idx=0;idx<_state_size; idx++)
     {
       _state[idx]=0;
-      _phi[idx]=0;
-      _phi_prime[idx]=0;
+      _phi_idx[idx]=0; _phi_val[idx] = 0.0f;
+      _phi_prime_idx[idx]=0; _phi_prime_val[idx]=0.0f;
     }
     
     std::ifstream fs(("./data/qvalue."+_tag+"."+std::to_string(_rank)+".log").c_str());
@@ -158,13 +161,14 @@ class qbrain
 
   void parse_param()
   {
-    _state_size = 100; //24*4*10; //TODO: Must use a param file     
-    _action_size = 8;  //TODO: Must use a param file     
-    _reward_size = 1; //TODO : Must use a param file     
+    _state_size = 100; // 24*4*10; //TODO: Must use a param file     
+    _action_size = 8;  // Must use a param file     
+    _reward_size = 1; // Must use a param file     
     
     _alpha = 0.01; // learning rate
     _epsilon = 0.9; // epsilon-greedy
     _lambda = 0.0; // eligibility parameter 0.8
+    _tau = 0.0;
     
     _gamma.resize(_reward_size);
     for (int reward_idx=0; reward_idx<_reward_size; reward_idx++)
@@ -235,15 +239,14 @@ class qbrain
     _is_test_trial = is_test_trial;
   }
   
-  void set_state(int num_phi, int* phi)
+  void set_state(int num_phi, int* phi_idx, float* phi_val)
   {
-    _num_phi = num_phi;
-    _phi = phi;
+    _num_phi = num_phi; _phi_idx = phi_idx; _phi_val = phi_val;
     
     for(int idx=0;idx<_state_size; idx++)
       _state[idx]=0;
-    for(int idx=0; idx<_num_phi && _phi[idx]<_state_size; idx++)
-      _state[_phi[idx]]=1;
+    for(int idx=0; idx<_num_phi && phi_idx[idx]<_state_size; idx++)
+      _state[phi_idx[idx]]=phi_val[idx];
   }
 
   void set_action(int action)
@@ -251,12 +254,11 @@ class qbrain
     _action = action;
   }
 
-  float* get_policy(int num_phi, int* phi)
+  float get_preference(int num_phi, int* phi)
   {
     float* _qvalue = new float[_action_size];
-    float* _policy = new float[_action_size];
-    float _policy_sum = 0.0;
-       
+    float _qmax;
+    
     // forall a: q_cap(s_t,A) = 0
     for(int action_idx=0; action_idx<_action_size; action_idx++)
       _qvalue[action_idx] = 0.0;    
@@ -267,33 +269,60 @@ class qbrain
 	_qvalue[action_idx] += _w[0][phi[idx]][action_idx];
 
     for(int action_idx=0; action_idx<_action_size; action_idx++)
+      if(_qvalue[action_idx]>_qmax)
+	_qmax = _qvalue[action_idx];    
+
+    return _qmax;
+  }
+  
+  float* get_qvalue(int num_phi, int* phi)
+  {
+    float* _qvalue = new float[_action_size];
+       
+    // forall a: q_cap(s_t,A) = 0
+    for(int action_idx=0; action_idx<_action_size; action_idx++)
+      _qvalue[action_idx] = 0.0;    
+
+    // forall a: q_cap(s_t,A) = sum_i w_i*phi_i(s_t,A)
+    for(int idx=0; idx<num_phi && phi[idx]<_state_size; idx++)
+      for(int action_idx=0; action_idx<_action_size; action_idx++)
+	_qvalue[action_idx] += _w[0][phi[idx]][action_idx];
+
+    return _qvalue;
+  }
+
+  double* get_policy(int num_phi, int* phi_idx, float* phi_val)
+  {
+    float* _qvalue = new float[_action_size];
+    double* _policy = new double[_action_size]; double _policy_sum = 0.0;
+           
+    // forall a: q_cap(s_t,A) = 0
+    for(int action_idx=0; action_idx<_action_size; action_idx++)
+      _qvalue[action_idx] = 0.0;    
+
+    // forall a: q_cap(s_t,A) = sum_i w_i*phi_i(s_t,A)
+    for(int action_idx=0; action_idx<_action_size; action_idx++)
+      for(int idx=0; idx<num_phi && phi_idx[idx]<_state_size; idx++)
+	_qvalue[action_idx] += _w[0][phi_idx[idx]][action_idx]*_phi_val[idx];
+
+    for(int action_idx=0; action_idx<_action_size; action_idx++)
     {
       if(_tag=="collide")
-	_policy[action_idx] = exp(_qvalue[action_idx]*1.5);
+	_policy[action_idx] = exp(_qvalue[action_idx]/_tau);
       else if(_tag=="goal")
-	_policy[action_idx] = exp(_qvalue[action_idx]*0.5);
-	
+	_policy[action_idx] = exp(_qvalue[action_idx]/_tau);
+
       _policy_sum += _policy[action_idx];
     }
 
     if(_policy_sum==0)
       return _policy;
-
+    
+    //cout<<"\n"<<_tag<<" ";
     for(int action_idx=0; action_idx<_action_size; action_idx++)
     {
       _policy[action_idx] /= _policy_sum;
-    }
-
-    if(_VERBOSE_UDP)
-    {
-      if(_tag=="collide") printf("\nPI_COLLIDE,%f[",_policy_sum);
-      if(_tag=="goal") printf("\nPI_GOAL:%f[",_policy_sum);
-      for(int action_idx=0; action_idx<_action_size; action_idx++)
-	{
-	  printf("%0.2f,",_policy[action_idx]);    
-	}
-      printf("]");
-      //printf("%d",action);
+      //cout<<" "<<_policy[action_idx]<<",";
     }
         
     return _policy;
@@ -341,7 +370,7 @@ class qbrain
     //	  _etrace[reward_idx][state_idx][action_idx] *= (_lambda*_gamma[reward_idx]);
     // TODO
     //for (int reward_idx=0; reward_idx<_reward_size; reward_idx++)
-      //_etrace[reward_idx][_state][_action] = 1.0;
+    //_etrace[reward_idx][_state][_action] = 1.0;
   }
 
   void update_w(bool off_policy)
@@ -356,14 +385,14 @@ class qbrain
     {
       float max_qprime=-999.0;
       for(int action_idx=0; action_idx<_action_size; action_idx++)
-	if(get_qvalue(_num_phi_prime,_phi_prime,action_idx) > max_qprime)
-	  max_qprime = get_qvalue(_num_phi_prime,_phi_prime,action_idx);
+	if(get_qvalue(_num_phi_prime,_phi_prime_idx, _phi_prime_val, action_idx) > max_qprime)
+	  max_qprime = get_qvalue(_num_phi_prime,_phi_prime_idx, _phi_prime_val, action_idx);
 
       for (int reward_idx=0; reward_idx<_reward_size; reward_idx++)
       {      
 	_rpe[reward_idx] = _reward[reward_idx]
 	  + _gamma[reward_idx] * max_qprime
-	  - get_qvalue(_num_phi, _phi, _action);
+	  - get_qvalue(_num_phi, _phi_idx, _phi_val, _action);
       }
     }
     else
@@ -371,48 +400,48 @@ class qbrain
       for (int reward_idx=0; reward_idx<_reward_size; reward_idx++)
       {      
 	_rpe[reward_idx] = _reward[reward_idx]
-	  + _gamma[reward_idx] * get_qvalue(_num_phi_prime, _phi_prime, _action_prime)
-	  - get_qvalue(_num_phi, _phi, _action);
+	  + _gamma[reward_idx] * get_qvalue(_num_phi_prime, _phi_prime_idx, _phi_prime_val, _action_prime)
+	  - get_qvalue(_num_phi, _phi_idx, _phi_val, _action);
       }      
     }
     
     // cortico-striatal learning
     // _w(phi(s_t,a_t)) += alpha*delta*phi(s_t,a_t)
     for (int reward_idx=0; reward_idx<_reward_size; reward_idx++)
-      for(int idx=0; idx<_num_phi && _phi[idx]<_state_size; idx++)
-	_w[reward_idx][_phi[idx]][_action] += _alpha*_rpe[reward_idx]; //_etrace[reward_idx][state_idx][action_idx];    */
-
-    if(_VERBOSE_UDP && _tag=="collide")
+      for(int idx=0; idx<_num_phi && _phi_idx[idx]<_state_size; idx++)
+	_w[reward_idx][_phi_idx[idx]][_action] += _alpha*_rpe[reward_idx]*_phi_val[idx]; //_etrace[reward_idx][state_idx][action_idx];        
+    if(_VERBOSE_UDP && !_rank && _tag=="goal")
     {
       printf("\n{AGIDX:%d T:%d eps:%0.1f LOG:%d ",_rank,_time,_epsilon,_is_test_trial);
       printf("S:(");
       for(int idx=0; idx<_num_phi; idx++)
-	printf("%d,",_phi[idx]);
-      printf("),A:%d -%0.1f-> ",_action,_reward[0]);
+	printf("[%d,%0.1f],",_phi_idx[idx],_phi_val[idx]);
+      printf("),A:%d -{%0.1f,%0.3f}-> ",_action,_reward[0],_rpe[0]);
     
       printf("S':(");
       for(int idx=0; idx<_num_phi_prime; idx++)
-	printf("%d,",_phi_prime[idx]);
+	printf("[%d,%0.1f],",_phi_prime_idx[idx],_phi_prime_val[idx]);
       printf("),A':%d}",_action_prime);
     }
-    fflush(stdout);
+    fflush(stdout);    
   }
 
-  float get_qvalue(int num_phi, int* phi, int action)
+  float get_qvalue(int num_phi, int* phi_idx, float* phi_val, int action)
   {
     float _qvalue=0.0;
 
     // q_cap(s,a) = sum_i w_i*phi_i(s,a)
-    for(int idx=0; idx<num_phi && phi[idx]<_state_size; idx++)
-      _qvalue += _w[0][phi[idx]][action];
-
+    for(int idx=0; idx<num_phi; idx++)
+      _qvalue += _w[0][phi_idx[idx]][action] * phi_val[idx];
+    
     return _qvalue;
   }
   
-  void advance_timestep(int num_phi_prime, int* phi_prime, int action_prime, int reward, int time)    
+  void advance_timestep(int num_phi_prime, int* phi_prime_idx, float* phi_prime_val, int action_prime, int reward, int time)    
   {
     _num_phi_prime = num_phi_prime;
-    _phi_prime = phi_prime;
+    _phi_prime_idx = phi_prime_idx;
+    _phi_prime_val = phi_prime_val;
     _action_prime = action_prime;
     
     _reward[0] = reward;

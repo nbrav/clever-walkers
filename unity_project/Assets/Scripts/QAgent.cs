@@ -214,9 +214,15 @@ public class QAgent : MonoBehaviour
     public List<float> get_udp()
     {
       List<float> udp_out = new List<float>();
-      
-      udp_out.AddRange(get_features_allocentric());     
-      udp_out.AddRange(get_features_egocentric());
+
+      List<float> allo_state = get_features_allocentric();
+      udp_out.Add(allo_state.Count/2);
+      udp_out.AddRange(allo_state);
+
+      List<float> ego_state = get_features_egocentric();
+      udp_out.Add(ego_state.Count);
+      udp_out.AddRange(ego_state);
+     
       udp_out.Add(get_reward_goal());
       udp_out.Add(get_reward_collision());      
       udp_out.Add(transform.localEulerAngles.y); //heading direction
@@ -280,7 +286,7 @@ public class QAgent : MonoBehaviour
     --------------------- */
     void simulate_hippocampus()
     {
-      float sigma = 3.0f;
+      float sigma = 1.0f;
       for(int pc_idx=0; pc_idx<NUM_PC; pc_idx++)
       {
 	float dis1 = transform.position.x - placecell[pc_idx,0]; // TODO /2sigma2
@@ -291,7 +297,7 @@ public class QAgent : MonoBehaviour
       }
     }
 
-      List<float> code_placecells()
+    List<float> code_placecells()
     {
       //TODO DEBUG
       
@@ -299,8 +305,16 @@ public class QAgent : MonoBehaviour
 
       // ORIGINAL PLACE CELL
       /*for(int pc_idx=0; pc_idx<NUM_PC; pc_idx++)
-	phi.Add(placecell[pc_idx,2]);            
-      */
+      {
+	if(placecell[pc_idx,2]>0.05)
+	{
+	  phi.Add(pc_idx);
+	  phi.Add(placecell[pc_idx,2]);
+	}
+	Debug.DrawRay(new Vector3(placecell[pc_idx,0], 0.0f, placecell[pc_idx,1])+Vector3.up,		      
+		      Vector3.up*placecell[pc_idx,2],
+		      Color.green);	
+		      }*/
       
       // NEAREST PLACE CELL
       int nearest_pc_idx = 0;
@@ -309,13 +323,8 @@ public class QAgent : MonoBehaviour
 	if(placecell[pc_idx,2]>placecell[nearest_pc_idx,2])
 	  nearest_pc_idx = pc_idx;	  
       }
-
       phi.Add(nearest_pc_idx);
-      //phi.Add(1);
-
-      Debug.DrawRay(new Vector3(placecell[nearest_pc_idx,0], 0.0f, placecell[nearest_pc_idx,1])+Vector3.up,		      
-		    Vector3.up*1.0f,
-		    Color.green);	
+      phi.Add(1);
 
       return phi;
     }
@@ -422,19 +431,20 @@ public class QAgent : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        float avgFrameRate = Time.frameCount / Time.time;
-
-        Application.targetFrameRate = frame_rate;
-        Time.timeScale = time_scale;
+      float avgFrameRate = Time.frameCount / Time.time;
+      
+      Application.targetFrameRate = frame_rate;
+      Time.timeScale = time_scale;
     }
 
     void FixedUpdate()
     {
+      
     }
 
     public void reset()
     {
-      transform.position = new Vector3(UnityEngine.Random.Range(-10,10),0,UnityEngine.Random.Range(-10,10)); //defaultLocation;
+      transform.position = new Vector3(UnityEngine.Random.Range(-10,10),0,UnityEngine.Random.Range(-10,10)); //defaultLocation; //
       transform.rotation = Quaternion.Euler(0.0f,UnityEngine.Random.Range(0,360),0.0f); //defaultPose;
 
       reward_goal = 0.0f; reward_collision = 0.0f;
