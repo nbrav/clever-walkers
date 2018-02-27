@@ -43,6 +43,7 @@ int main(int argc, char **argv)
 	char processor_name[MPI_MAX_PROCESSOR_NAME]; int name_len;
 	MPI_Get_processor_name(processor_name, &name_len);
 	_master = (_rank==0);
+	srand((unsigned)time(NULL)+_rank);
 
 	/* create (multi-)brain objects */
 	
@@ -52,7 +53,8 @@ int main(int argc, char **argv)
 	int* phi_goal_idx; float* phi_goal_val; int num_phi_goal=0; // Allocentric state (scalar)
 	int* phi_collide_idx; float* phi_collide_val; int num_phi_collide=0; // Egocentric state (vector)
 	double *policy_goal, *policy_collide;
-	int action=0, reward_goal=0, reward_collide=0, timestep=0;	 //TODO 2 rewards?!
+	int action=rand()%8, reward_goal=0, reward_collide=0, timestep=0;	 //TODO 2 rewards?!
+	int action_previous = rand()%8;
 	float sr_local[100];
 
 	float preference[2];
@@ -101,11 +103,15 @@ int main(int argc, char **argv)
 	if(_master)
 	  printf("\nGearing up \"%s\" system for %d rl-brain..\n", processor_name, _size);
 
-	float Tr = 20000, Te = 10000;
-	brain_goal._tau = 10.0f;//max(0.01,double(Tr-timestep)/2.0); 
-	brain_collide._tau = 1.0f;//max(0.01,double(Tr-timestep)/2.0);
-	//brain_goal._tau = 7.899992;
-	//brain_collide._tau = 0.799980;
+	float Tr = 300000, Te = 0;
+	if(ACTION_SELECTION_ONLY)
+	{
+	  brain_goal._tau = 0.01; brain_collide._tau = 0.005;
+	}
+	else
+	{
+	  brain_goal._tau = 1.0; brain_collide._tau = 1.0f;
+	}
 	      
 	// >---------------------------------------------------> //
 	// ^                    master loop                    v //
@@ -125,70 +131,45 @@ int main(int argc, char **argv)
 	    // global reset condition
 	    if(recvlen==2*sizeof(float) && sr_local[0]==std::numeric_limits<float>::max())
 	    {
-	      brain_goal.reset();
-	      brain_collide.reset();
+	      action_previous = -1;	      
+	      brain_goal.reset(); brain_collide.reset();
 	      trial_idx++;
 		
 	      if(ACTION_SELECTION_ONLY)
 	      {
-		brain_goal._epsilon=0.9;
-		global_epsilon = 0.9;
+		brain_goal._epsilon=1.0;
+		global_epsilon = 1.0;
 		brain_goal.trial_log(float(reward_goal_trial)); brain_collide.trial_log(float(reward_collide_trial));
 	      }
 	      else
 	      {
 		brain_goal.trial_log(float(reward_goal_trial)); brain_collide.trial_log(float(reward_collide_trial));
-		/*if(trial_idx%10==0)
-		{
-		  brain_goal._epsilon=1.0; brain_collide._epsilon=1.0; global_epsilon = 1.0;
-		}
-		else if(trial_idx%10==1)
-		{
-		  brain_goal._epsilon=0.7; brain_collide._epsilon=0.7;	global_epsilon = 0.7;	
-		}
-		else
-		{
-		  brain_goal._epsilon=0.7; brain_collide._epsilon=0.7; 	global_epsilon = 0.7;
-		}*/		
 	      }
 
-	      // action-selection learning (beta stage)
-	      if(reward_goal_trial<1) //failed goal module
-		brain_goal._tau -= 0.01;
+	      if(ACTION_SELECTION_ONLY)
+	      {
+		//brain_goal._tau = 0.05; brain_collide._tau = 0.05; 
+	      }
 	      else
-		brain_goal._tau += 0.001;		
-
-	      if(reward_collide_trial<0) //failed collision module
-		brain_collide._tau -= 0.01;
-	      else
-		brain_collide._tau += 0.001;
-
-	      brain_goal._tau = max(0.001f, brain_goal._tau);
-	      brain_collide._tau = max(0.001f, brain_collide._tau);
-
-	      brain_goal._tau = min(20.0f, brain_goal._tau);
-	      brain_collide._tau = min(20.0f, brain_collide._tau);
+	      {
+		brain_goal._tau = double(Tr-timestep)/Tr; brain_collide._tau = 1.0;	      
+		brain_goal._tau = max(0.05f, brain_goal._tau); brain_collide._tau = max(0.05f, brain_collide._tau);
+		brain_goal._tau = min(25.0f, brain_goal._tau); brain_collide._tau = min(25.0f, brain_collide._tau);
+	      }	      
 	      
 	      reward_goal_trial=0; reward_collide_trial=0;
 	      HALTING=false;
 	    }	    
 	    else if(recvlen==sizeof(float) && sr_local[0]==std::numeric_limits<float>::max())
-	    {
 	      HALTING=true;
-	    }	    
 	    else
-	    {
 	      break;
-	    }
 	  }
 
 	  if(_VERBOSE_UDP && _master) 
 	  {
-	    printf("\n[AgIdx:%d T:%d",_rank,timestep);
-	    printf("[Out:%d]->",action);
-	    printf("->[In:");
-	    for(int idx=0;idx<recvlen/sizeof(float);idx++)
-	      printf("%0.1f,",sr_local[idx]);
+	    printf("\n[AgIdx:%d T:%d",_rank,timestep);printf("[Out:%d]->",action);printf("->[In:");
+	    for(int idx=0;idx<recvlen/sizeof(float);idx++) printf("%0.1f,",sr_local[idx]);
 	    printf(" ]");	    
 	  }
 	  fflush(stdout);
@@ -230,11 +211,9 @@ int main(int argc, char **argv)
 	  if(_VERBOSE_UDP && _master) cout<<")";
 
 	  reward_goal = int(sr_local[int(sr_local_idx++)]);
-	  reward_collide = int(sr_local[int(sr_local_idx++)]);
-	  
+	  reward_collide = int(sr_local[int(sr_local_idx++)]);	  
 	  reward_goal_trial += reward_goal;
 	  reward_collide_trial += reward_collide;
-
 	  heading_direction = sr_local[int(sr_local_idx++)];
 
 	  if(_VERBOSE_UDP && _master) cout<<" R1:"<<reward_goal<<" R2:"<<reward_collide<<" HD:"<<heading_direction;
@@ -248,16 +227,19 @@ int main(int argc, char **argv)
 
 	  preference[0] = 1;//brain_goal.get_preference(num_phi_goal,phi_goal);
 	  preference[1] = 1;//brain_collide.get_preference(num_phi_collide,phi_collide);
-	  auto action_tuple = action_selection(policy_goal, policy_collide, preference, heading_direction, global_epsilon);
+	  
+	  auto action_tuple =
+	    action_selection(policy_goal, action_previous, policy_collide, preference, heading_direction, global_epsilon, false);
 
 	  action = std::get<0>(action_tuple);
+	  action_previous = action;
 	  int action_collide = std::get<1>(action_tuple);
 
 	  // w += alpha*(r'+gamma*q(s',a')-q(s,a))
 	  if(!ACTION_SELECTION_ONLY)
 	  {
 	    brain_goal.advance_timestep(num_phi_goal, phi_goal_idx, phi_goal_val, action, reward_goal, timestep);
-	    brain_collide.advance_timestep(num_phi_collide, phi_collide_idx, phi_collide_val, action_collide, reward_collide, timestep);
+	    //brain_collide.advance_timestep(num_phi_collide, phi_collide_idx, phi_collide_val, action_collide, reward_collide, timestep);
 	  }
 	  
 	  // s = s'
@@ -270,8 +252,8 @@ int main(int argc, char **argv)
 	  
 	  timestep++;
 
-	  if(_master && msgcnt%1000==0)
-	    printf("\n*(t:%d)(tau_g=%f,tau_c=%f)",msgcnt,brain_goal._tau,brain_collide._tau); 
+	  if(_master && msgcnt%1000==1)
+	    printf("\n*(t:%d)(tau_g=%f,tau_c=%f)",timestep, brain_goal._tau,brain_collide._tau); 
 	}
 	MPI_Finalize();
 }

@@ -296,22 +296,22 @@ public class PopulateScene : MonoBehaviour
 	
 	if(index==0)
 	{
-	  location = new Vector3(-square_dist,0,-square_dist);
+	  location = new Vector3(2-square_dist,0,2-square_dist);
 	  sphere.transform.position = new Vector3(square_dist, 1.5F, square_dist);
 	}
 	else if(index==1)
 	{
-	  location = new Vector3(-square_dist,0,square_dist);
+	  location = new Vector3(2-square_dist,0,square_dist-2);
 	  sphere.transform.position = new Vector3(square_dist, 1.5F, -square_dist);
 	}
 	else if(index==2)
 	{
-	  location = new Vector3(square_dist,0,-square_dist);
+	  location = new Vector3(square_dist-2,0,2-square_dist);
 	  sphere.transform.position = new Vector3(-square_dist, 1.5F, square_dist);
 	}
 	else if(index==3)
 	{
-	  location = new Vector3(square_dist,0,square_dist);
+	  location = new Vector3(square_dist-2,0,square_dist-2);
 	  sphere.transform.position = new Vector3(-square_dist, 1.5F, -square_dist);
 	}
 
@@ -356,6 +356,6 @@ public class PopulateScene : MonoBehaviour
   
     void OnGUI ()
     {
-      tring = GUI.TextField (new Rect (50, 50, 750, 150), display_string);
+      //tring = GUI.TextField (new Rect (50, 50, 750, 150), display_string);
     }
 }

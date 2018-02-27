@@ -165,14 +165,14 @@ class qbrain
     _action_size = 8;  // Must use a param file     
     _reward_size = 1; // Must use a param file     
     
-    _alpha = 0.01; // learning rate
+    _alpha = 0.1; // learning rate
     _epsilon = 0.9; // epsilon-greedy
     _lambda = 0.0; // eligibility parameter 0.8
     _tau = 0.0;
     
     _gamma.resize(_reward_size);
     for (int reward_idx=0; reward_idx<_reward_size; reward_idx++)
-      _gamma[reward_idx] = 0.7; // temporal-decay rate
+      _gamma[reward_idx] = 0.9; // temporal-decay rate
   }
 
   void reset()
@@ -182,7 +182,7 @@ class qbrain
     for(int idx=0;idx<_state_size; idx++)
       _state[idx]=0;
 
-    _action = 0;
+    _action = rand()%_action_size;
 
     for (int reward_idx=0; reward_idx<_reward_size; reward_idx++)
       _reward[reward_idx] = 0.0;
@@ -294,8 +294,18 @@ class qbrain
   double* get_policy(int num_phi, int* phi_idx, float* phi_val)
   {
     float* _qvalue = new float[_action_size];
+    float _qmax = std::numeric_limits<float>::min();
     double* _policy = new double[_action_size]; double _policy_sum = 0.0;
-           
+
+    //cout<<"\nPHI";
+    for(int idx=0; idx<num_phi; idx++)
+      if(_phi_val[idx]!=_phi_val[idx]) cerr<<"\n===NANs in PHI==="<<_tag<<" "<<_phi_val[idx]<<",";
+
+    if(_rank==0 && _time%1000==0)
+      VERBOSE = true;
+    else
+      VERBOSE = false;      
+    
     // forall a: q_cap(s_t,A) = 0
     for(int action_idx=0; action_idx<_action_size; action_idx++)
       _qvalue[action_idx] = 0.0;    
@@ -303,28 +313,37 @@ class qbrain
     // forall a: q_cap(s_t,A) = sum_i w_i*phi_i(s_t,A)
     for(int action_idx=0; action_idx<_action_size; action_idx++)
       for(int idx=0; idx<num_phi && phi_idx[idx]<_state_size; idx++)
+      {
+	if(_phi_val[idx]!=_phi_val[idx]) continue;
 	_qvalue[action_idx] += _w[0][phi_idx[idx]][action_idx]*_phi_val[idx];
+	_qmax = (_qvalue[action_idx]>_qmax)?_qvalue[action_idx]:_qmax;
+
+	if(_qvalue[action_idx]!=_qvalue[action_idx]) cerr<<"\n===NANs in Q!==="<<_w[0][phi_idx[idx]][action_idx]<<" "<<_phi_val[idx];
+      }
 
     for(int action_idx=0; action_idx<_action_size; action_idx++)
     {
       if(_tag=="collide")
-	_policy[action_idx] = exp(_qvalue[action_idx]/_tau);
+	_policy[action_idx] = exp((_qvalue[action_idx]-_qmax)/_tau);
       else if(_tag=="goal")
-	_policy[action_idx] = exp(_qvalue[action_idx]/_tau);
+	_policy[action_idx] = exp((_qvalue[action_idx]-_qmax)/_tau);
 
       _policy_sum += _policy[action_idx];
+
+      if(_policy[action_idx]!=_policy[action_idx]) cerr<<"\n===NANs in PI_i!===";
     }
 
     if(_policy_sum==0)
       return _policy;
     
-    //cout<<"\n"<<_tag<<" ";
+    if(VERBOSE && _tag=="goal") cout<<"\n"<<_tag<<" ";
     for(int action_idx=0; action_idx<_action_size; action_idx++)
     {
       _policy[action_idx] /= _policy_sum;
-      //cout<<" "<<_policy[action_idx]<<",";
+      if(VERBOSE && _tag=="goal") cout<<" "<<_policy[action_idx]<<",";
     }
-        
+
+    if(VERBOSE && _tag=="goal") VERBOSE = false;
     return _policy;
   }
   

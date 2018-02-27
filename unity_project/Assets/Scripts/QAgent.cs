@@ -266,14 +266,23 @@ public class QAgent : MonoBehaviour
 	for (int i=0; i<hits.Length; i++)
 	{	    
 	  RaycastHit hit = hits[i];
-
-	  if(hits[i].collider.gameObject.tag!="pedestrian") // if not another agent
-	   continue;
-	    
-	  Vector3 velocity_obstacle = hits[i].collider.gameObject.GetComponent<QAgent>().get_velocity();
+	  Vector3 velocity_obstacle;
+	  
+	  if(hits[i].collider.gameObject.tag=="pedestrian") // if not another agent
+	  {   
+	    velocity_obstacle = hits[i].collider.gameObject.GetComponent<QAgent>().get_velocity();
+	  }
+	  else if (hits[i].collider.gameObject.tag=="wall")
+	  {
+	    velocity_obstacle = Vector3.zero;
+	  }
+	  else
+	  {
+	    continue;
+	  }
+	  
 	  Vector3 velocity_relative = velocity_obstacle - get_velocity();
 	  int relative_angle_idx = (int)Mathf.Round(Vector3.Angle(velocity_relative, transform.forward)/36);
-
 	  state_array[angle_to_sector(ray_angle),distance_to_annulus(hit.distance),relative_angle_idx] = 1.0f; //hits[i].distance;
 
 	  colorList.Add(new Vector2(distance_to_annulus(hit.distance), angle_id(ray_angle)));
@@ -304,7 +313,7 @@ public class QAgent : MonoBehaviour
       List<float> phi = new List<float>(); 
 
       // ORIGINAL PLACE CELL
-      /*for(int pc_idx=0; pc_idx<NUM_PC; pc_idx++)
+      for(int pc_idx=0; pc_idx<NUM_PC; pc_idx++)
       {
 	if(placecell[pc_idx,2]>0.05)
 	{
@@ -314,17 +323,17 @@ public class QAgent : MonoBehaviour
 	Debug.DrawRay(new Vector3(placecell[pc_idx,0], 0.0f, placecell[pc_idx,1])+Vector3.up,		      
 		      Vector3.up*placecell[pc_idx,2],
 		      Color.green);	
-		      }*/
+      }
       
       // NEAREST PLACE CELL
-      int nearest_pc_idx = 0;
+      /*int nearest_pc_idx = 0;
       for(int pc_idx=0; pc_idx<NUM_PC; pc_idx++)
       {
 	if(placecell[pc_idx,2]>placecell[nearest_pc_idx,2])
 	  nearest_pc_idx = pc_idx;	  
       }
       phi.Add(nearest_pc_idx);
-      phi.Add(1);
+      phi.Add(1);*/
 
       return phi;
     }
@@ -386,7 +395,7 @@ public class QAgent : MonoBehaviour
 	reward_goal = 1.0f;
       }      
       
-      if(col.gameObject.tag == "pedestrian")
+      if(col.gameObject.tag == "pedestrian" || col.gameObject.tag == "wall" )
       {
 	if (turnOnTriangleIndicator)
 	  show_collision.TriggerIndicator();
@@ -405,7 +414,7 @@ public class QAgent : MonoBehaviour
 	reward_goal = 0.0f;
       }
       
-      if(col.gameObject.tag == "pedestrian")
+      if(col.gameObject.tag == "pedestrian" || col.gameObject.tag == "wall" )
       {
 	if (turnOnTriangleIndicator)
 	  show_collision.UntriggerIndicator();
@@ -444,7 +453,8 @@ public class QAgent : MonoBehaviour
 
     public void reset()
     {
-      transform.position = new Vector3(UnityEngine.Random.Range(-10,10),0,UnityEngine.Random.Range(-10,10)); //defaultLocation; //
+      
+      transform.position = new Vector3(UnityEngine.Random.Range(-8,8),0,UnityEngine.Random.Range(-8,8)); // + defaultLocation; 
       transform.rotation = Quaternion.Euler(0.0f,UnityEngine.Random.Range(0,360),0.0f); //defaultPose;
 
       reward_goal = 0.0f; reward_collision = 0.0f;
