@@ -292,7 +292,7 @@ public class PopulateScene : MonoBehaviour
 	
 	pose = Quaternion.Euler(0.0f,UnityEngine.Random.Range(0,360),0.0f);
 
-	float square_dist = 7.5f;
+	float square_dist = 9f;
 	
 	if(index==0)
 	{

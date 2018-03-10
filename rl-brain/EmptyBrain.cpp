@@ -1,8 +1,11 @@
-#define PORT 7890
 #define _VERBOSE_UDP false
+
+#define LEARNING true
+#define SOFTMAX true
+
+#define PORT 7890
 #define BUFSIZE 2048
 #define CLOCK_PRECISION 1E9
-#define ACTION_SELECTION_ONLY true
 #define HALTING_ACTION 12
 
 #define UNITY_IP "0.0.0.0" // enter your PC IP here
@@ -51,16 +54,24 @@ int main(int argc, char **argv)
 	qbrain brain_collide(_rank,"collide",1000); // egocentric
 	
 	int* phi_goal_idx; float* phi_goal_val; int num_phi_goal=0; // Allocentric state (scalar)
+	int* phi_goal_idx_prev; float* phi_goal_val_prev; int num_phi_goal_prev=0; // Allocentric state (scalar)
+	
 	int* phi_collide_idx; float* phi_collide_val; int num_phi_collide=0; // Egocentric state (vector)
+	int* phi_collide_idx_prev; float* phi_collide_val_prev; int num_phi_collide_prev=0; // Egocentric state (vector)
+
 	double *policy_goal, *policy_collide;
-	int action=rand()%8, reward_goal=0, reward_collide=0, timestep=0;	 //TODO 2 rewards?!
-	int action_previous = rand()%8;
+	int action=rand()%(8*3), reward_goal=0, reward_collide=0, timestep=0;
+	int action_previous = rand()%(8*3);
 	float sr_local[100];
 
 	float preference[2];
-
 	float heading_direction = 0.0;
 
+	phi_goal_idx = new int[100]; phi_goal_val = new float[100];
+	phi_goal_idx_prev = new int[100]; phi_goal_val_prev = new float[100];
+	phi_collide_idx = new int[100]; phi_collide_val = new float[100];
+	phi_collide_idx_prev = new int[100]; phi_collide_val_prev = new float[100];
+	
 	/* trial variables */
 	
 	int reward_goal_trial=0, reward_collide_trial=0;
@@ -98,99 +109,97 @@ int main(int argc, char **argv)
 	
 	brain_goal.reset(); 
 	brain_collide.reset();
-	float global_epsilon=1.0;
+	float global_epsilon;
 
 	if(_master)
 	  printf("\nGearing up \"%s\" system for %d rl-brain..\n", processor_name, _size);
 
-	float Tr = 300000, Te = 0;
-	if(ACTION_SELECTION_ONLY)
-	{
-	  brain_goal._tau = 0.01; brain_collide._tau = 0.005;
+	// Learning and trial meta-paremeters
+	float Tr = 500000, Te = 100000;
+	
+	if(LEARNING){
+	  if(SOFTMAX){
+	    brain_goal._tau = 1.0f; brain_collide._tau = 1.0f; 
+	  }
+	  else{
+	    global_epsilon = 0.8;
+	  }
 	}
-	else
-	{
-	  brain_goal._tau = 1.0; brain_collide._tau = 1.0f;
+	else{
+	  brain_goal._tau = 0.0001f; brain_collide._tau = 0.01f; global_epsilon = 1.0;
 	}
 	      
 	// >---------------------------------------------------> //
 	// ^                    master loop                    v //
 	// <---------------------------------------------------< //
 	for (;;) //timestep<Tr+Te
-	{	  
-	  // send action (A)
+	{
+	  // -------------------------------------------------------------
+	  // ---------------------send action (A)-------------------------
 	  if (sendto(fd, &action, sizeof(int), 0, (struct sockaddr *)&remaddr, addrlen) < 0)
 	    perror("sendto");
 	    
-	  // receive observations (K+2,s,phi_0,..,phi_K,reward)
+	  // -------------------------------------------------------------
+	  // ------receive observations (K+2,s,phi_0,..,phi_K,reward)-----
 	  for(;;)
 	  {
 	    recvlen = recvfrom(fd, sr_local, sizeof(float)*100, 0, (struct sockaddr *)&remaddr, &addrlen);
 	    if (recvlen<0) {printf("Uh oh! Something horrible happened with the simulator\n");break;}
   	    
-	    // global reset condition
-	    if(recvlen==2*sizeof(float) && sr_local[0]==std::numeric_limits<float>::max())
+	    // if global reset for all agents
+	    if(recvlen==2*sizeof(float) && sr_local[0]==std::numeric_limits<float>::max()) 
 	    {
-	      action_previous = -1;	      
-	      brain_goal.reset(); brain_collide.reset();
+	      action_previous = -1; brain_goal.reset(); brain_collide.reset();
 	      trial_idx++;
-		
-	      if(ACTION_SELECTION_ONLY)
-	      {
-		brain_goal._epsilon=1.0;
-		global_epsilon = 1.0;
-		brain_goal.trial_log(float(reward_goal_trial)); brain_collide.trial_log(float(reward_collide_trial));
-	      }
-	      else
-	      {
-		brain_goal.trial_log(float(reward_goal_trial)); brain_collide.trial_log(float(reward_collide_trial));
-	      }
-
-	      if(ACTION_SELECTION_ONLY)
-	      {
-		//brain_goal._tau = 0.05; brain_collide._tau = 0.05; 
-	      }
-	      else
-	      {
-		brain_goal._tau = double(Tr-timestep)/Tr; brain_collide._tau = 1.0;	      
-		brain_goal._tau = max(0.05f, brain_goal._tau); brain_collide._tau = max(0.05f, brain_collide._tau);
-		brain_goal._tau = min(25.0f, brain_goal._tau); brain_collide._tau = min(25.0f, brain_collide._tau);
-	      }	      
 	      
+	      brain_goal.trial_log(float(reward_goal_trial)); brain_collide.trial_log(float(reward_collide_trial));
 	      reward_goal_trial=0; reward_collide_trial=0;
+
+	      if(LEARNING && SOFTMAX)
+	      {
+		  brain_goal._tau = min(1.0f, max(0.001f, float(Tr-timestep)/Tr));
+		  brain_collide._tau = min(1.0f, max(0.001f, float(Tr-timestep)/Tr));
+	      }	      
+	
 	      HALTING=false;
 	    }	    
-	    else if(recvlen==sizeof(float) && sr_local[0]==std::numeric_limits<float>::max())
+	    else if(recvlen==sizeof(float) && sr_local[0]==std::numeric_limits<float>::max()) // if reset agent (individual)
 	      HALTING=true;
 	    else
 	      break;
 	  }
 
-	  if(_VERBOSE_UDP && _master) 
+	  if(HALTING)
 	  {
-	    printf("\n[AgIdx:%d T:%d",_rank,timestep);printf("[Out:%d]->",action);printf("->[In:");
+	    if(_VERBOSE_UDP && _master)
+	    {
+	       printf("\n\n\nRESET! [AgIdx:%d T:%d] ",_rank,timestep); fflush(stdout);
+	    }
+	    action=HALTING_ACTION;
+	    continue;
+	  }
+
+	  // debug printing
+	  if(_VERBOSE_UDP && _master && false) 
+	  {
+	    printf("\n\n\nRAW_UDP [AgIdx:%d T:%d] ",_rank,timestep); printf("[Out:%d] ->",action);
+	    printf(" [In:");
 	    for(int idx=0;idx<recvlen/sizeof(float);idx++) printf("%0.1f,",sr_local[idx]);
 	    printf(" ]");	    
 	  }
 	  fflush(stdout);
 
-	  if(HALTING)
-	  {
-	    action=HALTING_ACTION;
-	    continue;
-	  }
-
-	  // extract from observations (K+4,phi_goal,phi_collide_0,..,phi_collide_{K-1},reward_goal,reward_collide,heading_dir)
-
-	  //( K+4,
-	  //  #phi_goal, phi_goal_idx0, phi_goal_val0, phi_goal_idx1, phi_goal_val1,..
+	  // -------------------------------------------------------------
+	  // ----------------extract from observations--------------------
+	  // {K+4,
+	  //  #phi_goal, phi_goal_idx0, phi_goal_val0, phi_goal_idx1, phi_goal_val1,..,
 	  //  phi_collide_0,..,phi_collide_{K-1},
-	  //  reward_goal,reward_collide,heading_dir)
+	  //  reward_goal,reward_collide,heading_dir}
 	  int sr_local_idx = 1;
 	  
 	  // Extract allocentric state
-	  num_phi_goal = int(sr_local[sr_local_idx++]);  phi_goal_idx = new int[num_phi_goal]; phi_goal_val = new float[num_phi_goal];
-	  if(_VERBOSE_UDP && _master) cout<<"\n #S"<<num_phi_goal<<" (";
+	  num_phi_goal = int(sr_local[sr_local_idx++]);	  
+	  if(_VERBOSE_UDP && _master) cout<<"\n#S="<<num_phi_goal<<" (";
 	  for(int phi_idx=0; phi_idx<num_phi_goal; phi_idx++)
 	  {
 	    phi_goal_idx[phi_idx] = int(sr_local[sr_local_idx++]);
@@ -200,8 +209,8 @@ int main(int argc, char **argv)
 	  if(_VERBOSE_UDP && _master) cout<<")";
 	  	  
 	  //Extract egocentric state vector
-	  num_phi_collide = sr_local[sr_local_idx++]; phi_collide_idx = new int[num_phi_collide]; phi_collide_val = new float[num_phi_collide];
-	  if(_VERBOSE_UDP && _master) cout<<" #S"<<num_phi_collide<<" (";
+	  num_phi_collide = sr_local[sr_local_idx++]; 
+	  if(_VERBOSE_UDP && _master) cout<<" #X="<<num_phi_collide<<" (";
 	  for(int phi_idx=0; phi_idx<num_phi_collide; phi_idx++)
 	  {
 	    phi_collide_idx[phi_idx] = int(sr_local[sr_local_idx++]);
@@ -210,6 +219,7 @@ int main(int argc, char **argv)
 	  }
 	  if(_VERBOSE_UDP && _master) cout<<")";
 
+	  // extract rewards and heading direction
 	  reward_goal = int(sr_local[int(sr_local_idx++)]);
 	  reward_collide = int(sr_local[int(sr_local_idx++)]);	  
 	  reward_goal_trial += reward_goal;
@@ -218,11 +228,12 @@ int main(int argc, char **argv)
 
 	  if(_VERBOSE_UDP && _master) cout<<" R1:"<<reward_goal<<" R2:"<<reward_collide<<" HD:"<<heading_direction;
 
-	  // simulate the "Brain"
+	  // -------------------------------------------------------------
+	  // ----------------simulate the "Brain"-------------------------	  
 	  msgcnt++;
 
 	  // a' ~ Q(.|s',A)
-	  policy_goal = brain_goal.get_policy(num_phi_goal,phi_goal_idx,phi_goal_val);
+	  policy_goal = brain_goal.get_policy(num_phi_goal,phi_goal_idx,phi_goal_val);	  
 	  policy_collide = brain_collide.get_policy(num_phi_collide,phi_collide_idx,phi_collide_val);
 
 	  preference[0] = 1;//brain_goal.get_preference(num_phi_goal,phi_goal);
@@ -232,20 +243,22 @@ int main(int argc, char **argv)
 	    action_selection(policy_goal, action_previous, policy_collide, preference, heading_direction, global_epsilon, false);
 
 	  action = std::get<0>(action_tuple);
+	  // get from individual modules //action = brain_goal.get_action_egreedy(num_phi_goal,phi_goal_idx,phi_goal_val);
+
 	  action_previous = action;
 	  int action_collide = std::get<1>(action_tuple);
 
 	  // w += alpha*(r'+gamma*q(s',a')-q(s,a))
-	  if(!ACTION_SELECTION_ONLY)
+	  if(LEARNING)
 	  {
-	    brain_goal.advance_timestep(num_phi_goal, phi_goal_idx, phi_goal_val, action, reward_goal, timestep);
-	    //brain_collide.advance_timestep(num_phi_collide, phi_collide_idx, phi_collide_val, action_collide, reward_collide, timestep);
+	    brain_goal.advance_timestep(num_phi_goal,phi_goal_idx,phi_goal_val,action,reward_goal,timestep);
+	    //brain_collide.advance_timestep(num_phi_collide,phi_collide_idx,phi_collide_val,action_collide,reward_collide,timestep);
 	  }
 	  
 	  // s = s'
 	  brain_goal.set_state(num_phi_goal,phi_goal_idx,phi_goal_val);
-	  brain_collide.set_state(num_phi_collide, phi_collide_idx, phi_collide_val);
-	    
+	  // TODO brain_collide.set_state(num_phi_collide_prev, phi_collide_idx_prev, phi_collide_val_prev);
+	  
 	  // a = a'
 	  brain_goal.set_action(action);
 	  brain_collide.set_action(action_collide);

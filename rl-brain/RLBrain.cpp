@@ -74,8 +74,6 @@ class qbrain
     parse_param();
     _state_size = state_size; // override default state-size
 
-    float gaussian[] = {0.1,0.2,0.4,0.7,0.4,0.2,0.1,0.1};
-
     _state = new int[_state_size];
     
     _num_phi=0; _phi_idx = new int[_state_size]; _phi_val = new float[_state_size];    
@@ -161,14 +159,15 @@ class qbrain
 
   void parse_param()
   {
-    _state_size = 100; // 24*4*10; //TODO: Must use a param file     
-    _action_size = 8;  // Must use a param file     
+    //_state_size = 100; // 24*4*10; //TODO: Must use a param file     
+    _action_size = 8*3;  // Must use a param file     
     _reward_size = 1; // Must use a param file     
     
     _alpha = 0.1; // learning rate
-    _epsilon = 0.9; // epsilon-greedy
     _lambda = 0.0; // eligibility parameter 0.8
-    _tau = 0.0;
+
+    _epsilon = 0.8; // epsilon-greedy
+    _tau = 0.0; // softmax-temp
     
     _gamma.resize(_reward_size);
     for (int reward_idx=0; reward_idx<_reward_size; reward_idx++)
@@ -241,7 +240,13 @@ class qbrain
   
   void set_state(int num_phi, int* phi_idx, float* phi_val)
   {
-    _num_phi = num_phi; _phi_idx = phi_idx; _phi_val = phi_val;
+    _num_phi = num_phi;
+
+    for(int idx=0; idx<num_phi; idx++)
+    {
+      _phi_idx[idx] = phi_idx[idx];
+      _phi_val[idx] = phi_val[idx];
+    }
     
     for(int idx=0;idx<_state_size; idx++)
       _state[idx]=0;
@@ -272,6 +277,7 @@ class qbrain
       if(_qvalue[action_idx]>_qmax)
 	_qmax = _qvalue[action_idx];    
 
+    delete[] _qvalue;
     return _qmax;
   }
   
@@ -297,7 +303,61 @@ class qbrain
     float _qmax = std::numeric_limits<float>::min();
     double* _policy = new double[_action_size]; double _policy_sum = 0.0;
 
-    //cout<<"\nPHI";
+    for(int idx=0; idx<num_phi; idx++)
+    {
+      if(_phi_val[idx]!=_phi_val[idx])
+	cerr<<"\n===NANs in PHI==="<<_tag<<" "<<idx<<"&"<<num_phi<<","<<_phi_val[idx]<<",";
+    }
+
+    // forall a: q_cap(s_t,A) = 0
+    for(int action_idx=0; action_idx<_action_size; action_idx++)
+      _qvalue[action_idx] = 0.0;    
+
+    // forall a: q_cap(s_t,A) = sum_i w_i*phi_i(s_t,A)
+    for(int action_idx=0; action_idx<_action_size; action_idx++)
+      for(int idx=0; idx<num_phi && phi_idx[idx]<_state_size; idx++)
+      {
+	if(_phi_val[idx]!=_phi_val[idx]) continue;
+	_qvalue[action_idx] += _w[0][phi_idx[idx]][action_idx]*_phi_val[idx];
+	_qmax = (_qvalue[action_idx]>_qmax)?_qvalue[action_idx]:_qmax;
+
+	if(_qvalue[action_idx]!=_qvalue[action_idx])
+	  cerr<<"\nNANs in Q_"<<_tag<<"!"<<" W["<<phi_idx[idx]<<","<<action_idx<<"]="<<_w[0][phi_idx[idx]][action_idx]<<" PHI="<<_phi_val[idx];
+      }
+
+    for(int action_idx=0; action_idx<_action_size; action_idx++)
+    {
+      if(_tag=="collide")
+	_policy[action_idx] = exp((_qvalue[action_idx]-_qmax)/_tau);
+      else if(_tag=="goal")
+	_policy[action_idx] = exp((_qvalue[action_idx]-_qmax)/_tau);
+
+      _policy_sum += _policy[action_idx];
+
+      if(_policy[action_idx]!=_policy[action_idx]) cerr<<"\n===NANs in PI_i!==="<<_tag;
+    }
+
+    if(_policy_sum==0)
+      return _policy;
+    
+    if(VERBOSE && _tag=="goal") cout<<"\n"<<_tag<<" ";
+    for(int action_idx=0; action_idx<_action_size; action_idx++)
+    {
+      _policy[action_idx] /= _policy_sum;
+      if(VERBOSE && _tag=="goal") cout<<" "<<_policy[action_idx]<<",";
+    }
+
+    if(VERBOSE && _tag=="goal") VERBOSE = false;
+    delete[] _qvalue;
+    return _policy;
+  }
+
+  int get_action_egreedy(int num_phi, int* phi_idx, float* phi_val)
+  {
+    float* _qvalue = new float[_action_size];
+    float _qmax = std::numeric_limits<float>::min();
+    int greedy_action = rand()%_action_size;
+
     for(int idx=0; idx<num_phi; idx++)
       if(_phi_val[idx]!=_phi_val[idx]) cerr<<"\n===NANs in PHI==="<<_tag<<" "<<_phi_val[idx]<<",";
 
@@ -316,67 +376,21 @@ class qbrain
       {
 	if(_phi_val[idx]!=_phi_val[idx]) continue;
 	_qvalue[action_idx] += _w[0][phi_idx[idx]][action_idx]*_phi_val[idx];
-	_qmax = (_qvalue[action_idx]>_qmax)?_qvalue[action_idx]:_qmax;
-
 	if(_qvalue[action_idx]!=_qvalue[action_idx]) cerr<<"\n===NANs in Q!==="<<_w[0][phi_idx[idx]][action_idx]<<" "<<_phi_val[idx];
+
+	if(_qvalue[action_idx]>_qmax)
+	{
+	  greedy_action = action_idx;
+	  _qmax = _qvalue[action_idx];
+	}  
       }
 
-    for(int action_idx=0; action_idx<_action_size; action_idx++)
-    {
-      if(_tag=="collide")
-	_policy[action_idx] = exp((_qvalue[action_idx]-_qmax)/_tau);
-      else if(_tag=="goal")
-	_policy[action_idx] = exp((_qvalue[action_idx]-_qmax)/_tau);
-
-      _policy_sum += _policy[action_idx];
-
-      if(_policy[action_idx]!=_policy[action_idx]) cerr<<"\n===NANs in PI_i!===";
-    }
-
-    if(_policy_sum==0)
-      return _policy;
-    
-    if(VERBOSE && _tag=="goal") cout<<"\n"<<_tag<<" ";
-    for(int action_idx=0; action_idx<_action_size; action_idx++)
-    {
-      _policy[action_idx] /= _policy_sum;
-      if(VERBOSE && _tag=="goal") cout<<" "<<_policy[action_idx]<<",";
-    }
-
-    if(VERBOSE && _tag=="goal") VERBOSE = false;
-    return _policy;
-  }
-  
-  int get_action(int num_phi, int* phi)
-  {
-    float* _qvalue = new float[_action_size];
-    int action;
-
-    // reset condition
-    if(num_phi<0)
-      return rand()%_action_size;
-    
-    // forall a: q_cap(s_t,a) = sum_i w_i*phi_i(s_t,a)
-    for(int action_idx=0; action_idx<_action_size; action_idx++)
-      _qvalue[action_idx] = 0.0;    
-    for(int idx=0; idx<num_phi && phi[idx]<_state_size; idx++)
-      for(int action_idx=0; action_idx<_action_size; action_idx++)
-	_qvalue[action_idx] += _w[0][phi[idx]][action_idx];
-
-    // a_t^greedy = argmax_a q_cap(s_t,a)
-    int greedy_action = rand()%_action_size;
-
-    for(int action_idx=0; action_idx<_action_size; action_idx++)
-      if(_qvalue[action_idx]>_qvalue[greedy_action])
-	greedy_action=action_idx;    
-
     // a_t = a_t^greedy (epsilon greedy)
-    if (((float)rand()/RAND_MAX) < _epsilon) // P(exploit) = _epsilon
-      action = greedy_action; 
-    else // explore
-      action = rand()%_action_size;
+    if (((float)rand()/RAND_MAX)>_epsilon) //P(exploit)=_epsilon
+      greedy_action = rand()%_action_size;
 
-    return action;
+    delete[] _qvalue;
+    return greedy_action;
   }
 
   /*------------- Update rules ----------*/
@@ -462,7 +476,7 @@ class qbrain
     _phi_prime_idx = phi_prime_idx;
     _phi_prime_val = phi_prime_val;
     _action_prime = action_prime;
-    
+
     _reward[0] = reward;
     _time = time;
 
@@ -474,7 +488,7 @@ class qbrain
    
     //update_etrace();
     update_w(false);
-
+	  
     //reward_log();
     //state_log();
     //action_log();

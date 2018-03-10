@@ -16,7 +16,7 @@ TRAIN_PATH = "./reward-punishment.";
 TEST_PATH = "./trial.";
 
 REWARD_PATH = [TEST_PATH,];
-BIN_SIZE    = [50];
+BIN_SIZE    = [100];
 
 idx_colour = ['r','g','b','c','k']
 idx_legend = ['A1','A2','A3','A4','*']
@@ -51,8 +51,12 @@ for goal_tag in tag:
                 plt.title('Learning curve (evaluation): '+goal_tag)
 
             plt.xlabel('time (# of trials)')
-            plt.ylabel('reward frequency \n(running average: '+str(BIN_SIZE[_set])+')')
 
+            if goal_tag=="goal":
+                plt.ylabel('reward frequency \n(running average: '+str(BIN_SIZE[_set])+')')
+            else:
+                plt.ylabel('collision frequency \n(running average: '+str(BIN_SIZE[_set])+')')
+                
             plt.ylim(-0.1,1.1)
             
         if goal_tag=="goal":
