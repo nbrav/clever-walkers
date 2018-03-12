@@ -1,7 +1,9 @@
 #define _VERBOSE_UDP false
 
-#define LEARNING true
+#define LEARNING false
 #define SOFTMAX true
+
+#define V_ARBITER true
 
 #define PORT 7890
 #define BUFSIZE 2048
@@ -115,18 +117,22 @@ int main(int argc, char **argv)
 	  printf("\nGearing up \"%s\" system for %d rl-brain..\n", processor_name, _size);
 
 	// Learning and trial meta-paremeters
-	float Tr = 500000, Te = 100000;
+	float Tr = 100000, Te = 100000;
 	
 	if(LEARNING){
 	  if(SOFTMAX){
-	    brain_goal._tau = 1.0f; brain_collide._tau = 1.0f; 
+	    brain_goal._tau = 0.5f; brain_collide._tau = 0.5f; 
 	  }
 	  else{
 	    global_epsilon = 0.8;
 	  }
 	}
-	else{
-	  brain_goal._tau = 0.0001f; brain_collide._tau = 0.01f; global_epsilon = 1.0;
+	else if (V_ARBITER){
+	  brain_goal._tau = 1.0f; brain_collide._tau = 1.0f; global_epsilon = 1.0;	  
+	}
+	else
+	{
+	  brain_goal._tau = 1.0f; brain_collide._tau = 0.1f; global_epsilon = 1.0;
 	}
 	      
 	// >---------------------------------------------------> //
@@ -157,8 +163,8 @@ int main(int argc, char **argv)
 
 	      if(LEARNING && SOFTMAX)
 	      {
-		  brain_goal._tau = min(1.0f, max(0.001f, float(Tr-timestep)/Tr));
-		  brain_collide._tau = min(1.0f, max(0.001f, float(Tr-timestep)/Tr));
+		  brain_goal._tau = min(1.0f, max(0.001f, float(Tr-timestep)/Tr/2.0f));
+		  brain_collide._tau = min(1.0f, max(0.001f, float(Tr-timestep)/Tr/2.0f));
 	      }	      
 	
 	      HALTING=false;
@@ -180,7 +186,7 @@ int main(int argc, char **argv)
 	  }
 
 	  // debug printing
-	  if(_VERBOSE_UDP && _master && false) 
+	  if(_VERBOSE_UDP && _master) 
 	  {
 	    printf("\n\n\nRAW_UDP [AgIdx:%d T:%d] ",_rank,timestep); printf("[Out:%d] ->",action);
 	    printf(" [In:");
@@ -240,24 +246,23 @@ int main(int argc, char **argv)
 	  preference[1] = 1;//brain_collide.get_preference(num_phi_collide,phi_collide);
 	  
 	  auto action_tuple =
-	    action_selection(policy_goal, action_previous, policy_collide, preference, heading_direction, global_epsilon, false);
+	    action_selection(policy_goal, action_previous, policy_collide, preference, heading_direction, global_epsilon, _master*_VERBOSE_UDP);
 
 	  action = std::get<0>(action_tuple);
 	  // get from individual modules //action = brain_goal.get_action_egreedy(num_phi_goal,phi_goal_idx,phi_goal_val);
-
-	  action_previous = action;
+	  action_previous = action;	  
 	  int action_collide = std::get<1>(action_tuple);
 
 	  // w += alpha*(r'+gamma*q(s',a')-q(s,a))
 	  if(LEARNING)
 	  {
 	    brain_goal.advance_timestep(num_phi_goal,phi_goal_idx,phi_goal_val,action,reward_goal,timestep);
-	    //brain_collide.advance_timestep(num_phi_collide,phi_collide_idx,phi_collide_val,action_collide,reward_collide,timestep);
+	    brain_collide.advance_timestep(num_phi_collide,phi_collide_idx,phi_collide_val,action_collide,reward_collide,timestep);
 	  }
 	  
 	  // s = s'
 	  brain_goal.set_state(num_phi_goal,phi_goal_idx,phi_goal_val);
-	  // TODO brain_collide.set_state(num_phi_collide_prev, phi_collide_idx_prev, phi_collide_val_prev);
+	  brain_collide.set_state(num_phi_collide, phi_collide_idx, phi_collide_val);
 	  
 	  // a = a'
 	  brain_goal.set_action(action);

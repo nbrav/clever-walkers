@@ -18,24 +18,21 @@ std::tuple<int, int> action_selection
 
   // initalize policy (geo,ego,prev,final) 36x5
   double* policy_prev = new double[numDirection*numSpeed];
-  double* policy_final = new double[numDirection*numSpeed];
-  
+  double* policy_final = new double[numDirection*numSpeed];  
   for(int action_idx=0; action_idx<numDirection*numSpeed; action_idx++)
   {
     policy_prev[action_idx] = 0.0;
     policy_final[action_idx] = 0.0;
   }
+  int action_geo_chosen=rand()%action_size,action_ego_chosen=rand()%action_size;
 
-  int action_geo_chosen = rand()%action_size,
-      action_ego_chosen = rand()%action_size;
-
-  // computing difference between ego and geo
+  // computing difference between ego and geo directions
   // initializing action -> angle
   float action_geo_to_angle[numDirection];
   for(int idx=0; idx<numDirection; idx++)
-    action_geo_to_angle[idx]=float(idx)*10.0f;    
+    action_geo_to_angle[idx]=float(idx)*45.0f;    
   
-  // finding zero action
+  // finding zero action 
   int closest_zero_action = 0;
   for(int action_idx=0; action_idx<action_size; action_idx++)
   {
@@ -61,34 +58,35 @@ std::tuple<int, int> action_selection
     policy_sum += policy_prev[action_idx];
     
     if(policy_prev[action_idx] != policy_prev[action_idx]) cerr<<"\n---NANs in PI_prev!---";
+    policy_final[action_idx] = pow(policy_prev[action_idx],1);
   }
   for(int action_idx=0; action_idx<action_size; action_idx++)
     policy_prev[action_idx] /= policy_sum;
-    
+
   //allo-centric
   if(DEBUG) cout<<"\n\nPI_goal[";
   for(int action_idx=0; action_idx<action_size; action_idx++)
   {
     if(DEBUG) cout<<policy_geo[action_idx]<<",";
-    policy_final[action_idx] = pow(policy_prev[action_idx],1) * pow(policy_geo[action_idx],1); 
+    policy_final[action_idx] *= pow(policy_geo[action_idx],1); 
 
     if(policy_final[action_idx]!=policy_final[action_idx])
       cerr<<"\nNANs in PI_goal!";
   }
-  if(DEBUG)cout<<"]";
+  if(DEBUG)cout<<"]";  
   
-  /*//ego-centric
-  for(int action_idx=0; action_idx<action_size; action_idx++)
-  {    
-    int action_geo_idx = (action_size+action_idx+closest_heading_action-closest_zero_action)%action_size;    
-
-    //if(action_idx>=3 && action_idx<=5)
-    policy[action_geo_idx] *= pow(policy_ego[action_idx],2);
-    //else
-    //policy[action_geo_idx] *= 0.0; 
-  }*/
+  //ego-centric
+  if(DEBUG) cout<<"\n\n"<<heading_direction<<": ";
+  for(int numSpeed_idx=0; numSpeed_idx<numSpeed; numSpeed_idx++)
+  {
+    for(int numDirection_idx=0; numDirection_idx<numDirection; numDirection_idx++)
+    {
+      int action_geo_idx = numSpeed_idx*numDirection + (numDirection+numDirection_idx+closest_heading_action-closest_zero_action)%numDirection;
+      policy_final[action_geo_idx] *= pow(policy_ego[numSpeed_idx*numDirection+numDirection_idx],1);
+    }
+  }
   
-  // normalize pi_f
+  // compute and normalize pi_final
   policy_sum = 0.0;
   for(int action_idx=0; action_idx<action_size; action_idx++)
     policy_sum += policy_final[action_idx];
@@ -96,41 +94,49 @@ std::tuple<int, int> action_selection
     policy_final[action_idx] /= policy_sum;
 
   // pi_final action-selection
-
+  bool GOT_ACTION = false;  
   if(SOFTMAX)
   {  
     float rand_prob = ((float)rand()/RAND_MAX), policy_bucket = 0.0;
-    for(int action_idx=0; action_idx<action_size; action_idx++)
-    {    
-      int action_geo_idx = (action_size+action_idx+closest_heading_action-closest_zero_action)%action_size;
-      policy_bucket += (policy_final[action_geo_idx]);
-      if(rand_prob <= policy_bucket)
+    for(int numSpeed_idx=0; numSpeed_idx<numSpeed && !GOT_ACTION; numSpeed_idx++)
+    {
+      for(int numDirection_idx=0; numDirection_idx<numDirection && !GOT_ACTION; numDirection_idx++)
       {
-	action_geo_chosen = action_geo_idx;      
-	action_ego_chosen = action_idx;
-	break;
+	int action_geo_idx = numSpeed_idx*numDirection + (numDirection+numDirection_idx+closest_heading_action-closest_zero_action)%numDirection;
+	policy_bucket += (policy_final[action_geo_idx]);
+
+	if(DEBUG) cout<<numSpeed_idx*numDirection+numDirection_idx<<"->"<<action_geo_idx<<","<<rand_prob<<"["<<policy_bucket<<"] ";
+	
+	if(rand_prob <= policy_bucket)
+	{
+	  action_geo_chosen = action_geo_idx;      
+	  action_ego_chosen = numSpeed_idx*numDirection+numDirection_idx;
+	  GOT_ACTION = true;
+	}	
       }
-    }
+    }    
   }
   else
   {
-    for(int action_idx=0; action_idx<action_size; action_idx++)
-    {    
-      if(policy_final[action_idx]>policy_final[action_geo_chosen])
-      {
-	action_geo_chosen = action_idx;    
-	action_ego_chosen = action_idx;
-      }
-    }
-
-    if (((float)rand()/RAND_MAX)>_epsilon) //P(exploit)=_epsilon
+    for(int numSpeed_idx=0; numSpeed_idx<numSpeed; numSpeed_idx++)
     {
-      action_ego_chosen = rand()%action_size;
-      action_geo_chosen = rand()%action_size; //(action_size+action_ego_chosen+closest_heading_action-closest_zero_action)%action_size;
-    }
-  }
-  
-  
+      for(int numDirection_idx=0; numDirection_idx<numDirection; numDirection_idx++)
+      {
+	int action_geo_idx = numSpeed_idx*numDirection + (numDirection+numDirection_idx+closest_heading_action-closest_zero_action)%numDirection;
+
+	if(DEBUG) cout<<numSpeed_idx*numDirection+numDirection_idx<<"->"<<action_geo_idx<<"["<<policy_final[action_geo_idx]<<"] ";
+	
+	if(policy_final[action_geo_idx]>policy_final[action_geo_chosen])
+	{
+	  action_geo_chosen = action_geo_idx;      
+	  action_ego_chosen = numSpeed_idx*numDirection+numDirection_idx;	  
+	  break;
+	}	
+      }
+    }    
+  }  
+
+  if(DEBUG) cout<<"\n"<<action_geo_chosen<<"&"<<action_ego_chosen;
   delete[] policy_geo;
   delete[] policy_ego;
   delete[] policy_prev;

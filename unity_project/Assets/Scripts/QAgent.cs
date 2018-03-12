@@ -247,10 +247,19 @@ public class QAgent : MonoBehaviour
 	  }
 	  
 	  Vector3 velocity_relative = velocity_obstacle - get_velocity();
-	  int relative_angle_idx = (int)Mathf.Round(Vector3.Angle(velocity_relative, transform.forward)/36);
+	  float relative_angle = Mathf.Round(Vector3.Angle(velocity_relative, transform.forward));
+	  int relative_angle_idx = (int)relative_angle/36;
 	  state_array[angle_to_sector(ray_angle),distance_to_annulus(hit.distance),relative_angle_idx] = 1.0f; //hits[i].distance;
 
-	  colorList.Add(new Vector2(distance_to_annulus(hit.distance), angle_id(ray_angle)));
+	  if(this.gameObject.name == "agent1")
+	  {
+	    colorList.Add(new Vector2(distance_to_annulus(hit.distance), angle_id(ray_angle)));
+	      
+	    Vector3 ray_origin_rel = AGENT_HEIGHT*Vector3.up + hits[i].collider.gameObject.transform.position; 
+	    //Vector3 ray_vector_rel = Quaternion.AngleAxis(theta, Vector3.up) * transform.forward; //egocentric
+	    Vector3 ray_vector_rel = Quaternion.AngleAxis(10, Vector3.up) *Vector3.forward; //allocentric
+	    Debug.DrawRay(ray_origin_rel, ray_vector_rel*3, Color.green);	 	    
+	  }
 	}
       }
     }
@@ -273,11 +282,8 @@ public class QAgent : MonoBehaviour
 
     List<float> code_placecells()
     {
-      //TODO DEBUG
-      
       List<float> phi = new List<float>(); 
 
-      // ORIGINAL PLACE CELL
       for(int pc_idx=0; pc_idx<NUM_PC; pc_idx++)
       {
 	if(placecell[pc_idx,2]>0.05)
@@ -407,8 +413,7 @@ public class QAgent : MonoBehaviour
 
     public void reset()
     {
-      
-      transform.position = new Vector3(UnityEngine.Random.Range(-15,15),0,UnityEngine.Random.Range(-15,15));// defaultLocation; //
+      transform.position = new Vector3(UnityEngine.Random.Range(-15,15),0,UnityEngine.Random.Range(-15,15)); //defaultLocation;
       transform.rotation = Quaternion.Euler(0.0f,UnityEngine.Random.Range(0,360),0.0f); //defaultPose;
 
       reward_goal = 0.0f; reward_collision = 0.0f;

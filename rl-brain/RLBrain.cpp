@@ -163,7 +163,7 @@ class qbrain
     _action_size = 8*3;  // Must use a param file     
     _reward_size = 1; // Must use a param file     
     
-    _alpha = 0.1; // learning rate
+    _alpha = 0.01; // learning rate
     _lambda = 0.0; // eligibility parameter 0.8
 
     _epsilon = 0.8; // epsilon-greedy
