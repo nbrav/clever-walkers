@@ -16,7 +16,6 @@ public class DrawCircle : MonoBehaviour {
     //    }
     //}
 
-
     private void Awake()
     {
         _meshFilter = GetComponent<MeshFilter>();

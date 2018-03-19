@@ -1,9 +1,10 @@
 #define _VERBOSE_UDP false
+#define _VERBOSE_AS false
 
 #define LEARNING false
-#define SOFTMAX true
+#define SOFTMAX false
 
-#define V_ARBITER true
+#define OMEGA_LEARNING true
 
 #define PORT 7890
 #define BUFSIZE 2048
@@ -14,6 +15,7 @@
 #define THIS_IP "127.0.0.1" // use if running Brain & Unity in same system
 
 #include <iostream>
+#include <iomanip>
 #include <cstdlib>
 #include <cstdio>
 #include <string.h>
@@ -66,6 +68,9 @@ int main(int argc, char **argv)
 	int action_previous = rand()%(8*3);
 	float sr_local[100];
 
+	int action_collide = 0;
+	double prob_behave = 1;
+	
 	float preference[2];
 	float heading_direction = 0.0;
 
@@ -117,22 +122,22 @@ int main(int argc, char **argv)
 	  printf("\nGearing up \"%s\" system for %d rl-brain..\n", processor_name, _size);
 
 	// Learning and trial meta-paremeters
-	float Tr = 100000, Te = 100000;
+	float Tr = 300000, Te = 10000;
 	
 	if(LEARNING){
 	  if(SOFTMAX){
-	    brain_goal._tau = 0.5f; brain_collide._tau = 0.5f; 
+	    brain_goal._omega = 0.5f; brain_collide._omega = 0.5f; 
 	  }
 	  else{
 	    global_epsilon = 0.8;
 	  }
 	}
-	else if (V_ARBITER){
-	  brain_goal._tau = 1.0f; brain_collide._tau = 1.0f; global_epsilon = 1.0;	  
+	else if (OMEGA_LEARNING){
+	  brain_goal._omega = 1.0f; brain_collide._omega = 1.0f; global_epsilon = 1.0;	  
 	}
 	else
 	{
-	  brain_goal._tau = 1.0f; brain_collide._tau = 0.1f; global_epsilon = 1.0;
+	  brain_goal._omega = 0.001f; brain_collide._omega = 100.0f; global_epsilon = 1.0;
 	}
 	      
 	// >---------------------------------------------------> //
@@ -161,11 +166,11 @@ int main(int argc, char **argv)
 	      brain_goal.trial_log(float(reward_goal_trial)); brain_collide.trial_log(float(reward_collide_trial));
 	      reward_goal_trial=0; reward_collide_trial=0;
 
-	      if(LEARNING && SOFTMAX)
+	      if(LEARNING && SOFTMAX && !OMEGA_LEARNING)
 	      {
-		  brain_goal._tau = min(1.0f, max(0.001f, float(Tr-timestep)/Tr/2.0f));
-		  brain_collide._tau = min(1.0f, max(0.001f, float(Tr-timestep)/Tr/2.0f));
-	      }	      
+		brain_goal._omega = min(1.0f, max(0.001f, float(Tr-timestep)/Tr/2.0f));
+		brain_collide._omega = min(1.0f, max(0.01f, float(Tr-timestep)/Tr/2.0f));
+	      }
 	
 	      HALTING=false;
 	    }	    
@@ -238,6 +243,13 @@ int main(int argc, char **argv)
 	  // ----------------simulate the "Brain"-------------------------	  
 	  msgcnt++;
 
+	  // omega-learning
+	  if(msgcnt!=1)
+	  {
+	    brain_goal.update_omega(prob_behave,policy_goal[action]);
+	    brain_collide.update_omega(prob_behave,policy_collide[action_collide]);
+	  }
+	  
 	  // a' ~ Q(.|s',A)
 	  policy_goal = brain_goal.get_policy(num_phi_goal,phi_goal_idx,phi_goal_val);	  
 	  policy_collide = brain_collide.get_policy(num_phi_collide,phi_collide_idx,phi_collide_val);
@@ -246,12 +258,12 @@ int main(int argc, char **argv)
 	  preference[1] = 1;//brain_collide.get_preference(num_phi_collide,phi_collide);
 	  
 	  auto action_tuple =
-	    action_selection(policy_goal, action_previous, policy_collide, preference, heading_direction, global_epsilon, _master*_VERBOSE_UDP);
+	    action_selection(policy_goal, action_previous, policy_collide, preference, heading_direction, global_epsilon, _master*_VERBOSE_AS);
 
 	  action = std::get<0>(action_tuple);
-	  // get from individual modules //action = brain_goal.get_action_egreedy(num_phi_goal,phi_goal_idx,phi_goal_val);
+	  action_collide = std::get<1>(action_tuple);
+	  prob_behave = std::get<2>(action_tuple);
 	  action_previous = action;	  
-	  int action_collide = std::get<1>(action_tuple);
 
 	  // w += alpha*(r'+gamma*q(s',a')-q(s,a))
 	  if(LEARNING)
@@ -270,8 +282,8 @@ int main(int argc, char **argv)
 	  
 	  timestep++;
 
-	  if(_master && msgcnt%1000==1)
-	    printf("\n*(t:%d)(tau_g=%f,tau_c=%f)",timestep, brain_goal._tau,brain_collide._tau); 
+	  if(_master)// && msgcnt%1000==1)
+	    printf("\n*(t:%d)(tau_g=%f,tau_c=%f)",timestep, 1.0/brain_goal._omega,1.0/brain_collide._omega); 
 	}
 	MPI_Finalize();
 }

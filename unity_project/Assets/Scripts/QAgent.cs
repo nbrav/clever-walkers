@@ -413,7 +413,7 @@ public class QAgent : MonoBehaviour
 
     public void reset()
     {
-      transform.position = new Vector3(UnityEngine.Random.Range(-15,15),0,UnityEngine.Random.Range(-15,15)); //defaultLocation;
+      transform.position = defaultLocation; //new Vector3(UnityEngine.Random.Range(-10,10),0,UnityEngine.Random.Range(-10,10));
       transform.rotation = Quaternion.Euler(0.0f,UnityEngine.Random.Range(0,360),0.0f); //defaultPose;
 
       reward_goal = 0.0f; reward_collision = 0.0f;
