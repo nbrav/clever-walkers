@@ -1,7 +1,7 @@
-#define _VERBOSE_UDP false
+#define _VERBOSE_UDP true
 #define _VERBOSE_AS false
 
-#define LEARNING false
+#define LEARNING true
 #define SOFTMAX false
 
 #define OMEGA_LEARNING true
@@ -129,7 +129,7 @@ int main(int argc, char **argv)
 	    brain_goal._omega = 0.5f; brain_collide._omega = 0.5f; 
 	  }
 	  else{
-	    global_epsilon = 0.8;
+	    global_epsilon = 0.8; brain_goal._omega = 0.5f; brain_collide._omega = 0.5f;
 	  }
 	}
 	else if (OMEGA_LEARNING){

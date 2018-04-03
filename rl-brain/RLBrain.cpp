@@ -357,9 +357,9 @@ class qbrain
   {    
     _omega += 0.1*get_rpe();
 
-    if(!_rank && prob_behave!=0 && prob_policy!=0)
+    //if(!_rank && prob_behave!=0 && prob_policy!=0)
       //cout<<"\n"<<_rank<<" B[a]="<<(prob_behave)<<"->"<<log(prob_behave)<<" PI[a]="<<(prob_policy)<<"->"<<log(prob_policy);
-      cout<<"\n"<<log(prob_policy/prob_behave);
+      //cout<<"\n"<<log(prob_policy/prob_behave);
     //_omega += 0.01*(log(prob_policy)-log(prob_behave));
   }
   
