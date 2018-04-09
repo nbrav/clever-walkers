@@ -54,7 +54,7 @@ public class PopulateScene : MonoBehaviour
     int FixedUpdateIndex;
     int trial_elapsed=0;
     int frame_rate = 30;
-    float trial_duration = 65.0F; //in sec
+    float trial_duration = 100.0F; //in sec
     float time_per_update = 0.5F; //in sec
 
     string tring;
@@ -194,10 +194,10 @@ public class PopulateScene : MonoBehaviour
 	    data_out_int[idx2+1] = state_reward[idx2];
 
 	  if(global_reset!=0.0f && reset_counter[idx]!= 0.0f)
-	    if(state_reward[state_reward.Count-3]!=0.0f)
+	    if(state_reward[state_reward.Count-3]>0.0f)
 	    {
 	      reset_counter[idx]=0.0f;
-	    }
+	    }	  	    
 	  
 	  Buffer.BlockCopy(data_out_int, 0, data_out, 0, data_out.Length);	
 	  socket[idx].SendTo(data_out, sizeof(float)*data_out_int.Length, SocketFlags.None,Remote);
@@ -285,48 +285,66 @@ public class PopulateScene : MonoBehaviour
 	// agent pose
 	Vector3 location = new Vector3(0,0,0);
 	Quaternion pose;
-	
-	// goal object
-	GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);	      
-	sphere.name = "goal"+index.ToString();
-	
+
+	GameObject goal;
+	    
 	pose = Quaternion.Euler(0.0f,UnityEngine.Random.Range(0,360),0.0f);
 
-	float square_dist = 9f;
+	float square_dist = 13f;
+
+	string SCENARIO = "hallway";
 	
-	if(index==0)
+	if(SCENARIO=="circle")
 	{
-	  location = new Vector3(2-square_dist,0,2-square_dist);
-	  sphere.transform.position = new Vector3(square_dist, 1.5F, square_dist);
+	    goal = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+	    goal.name = "goal"+index.ToString();
+	
+	    clone.GetComponent<Renderer>().material.color = new Color(Mathf.Cos(2*Mathf.PI*index/numOfWalkers), 0.5f, Mathf.Sin(2*Mathf.PI*index/numOfWalkers));
+	
+	    location = new Vector3(Mathf.Cos(2*Mathf.PI*index/numOfWalkers)*square_dist,0,Mathf.Sin(2*Mathf.PI*index/numOfWalkers)*square_dist);
+	    goal.transform.position = new Vector3(-Mathf.Cos(2*Mathf.PI*index/numOfWalkers)*square_dist, 0.5F, -Mathf.Sin(2*Mathf.PI*index/numOfWalkers)*square_dist);
+	    goal.transform.localScale = new Vector3(2.0f,2.0f,2.0f);
+	    goal.GetComponent<Renderer>().material.color = new Color(Mathf.Cos(2*Mathf.PI*index/numOfWalkers), 0.5f, Mathf.Sin(2*Mathf.PI*index/numOfWalkers));
+
+	    clone.GetComponent<QAgent>().setGoal(goal);
 	}
-	else if(index==1)
+	else if(SCENARIO=="hallway")
 	{
-	  location = new Vector3(2-square_dist,0,square_dist-2);
-	  sphere.transform.position = new Vector3(square_dist, 1.5F, -square_dist);
-	}
-	else if(index==2)
-	{
-	  location = new Vector3(square_dist-2,0,2-square_dist);
-	  sphere.transform.position = new Vector3(-square_dist, 1.5F, square_dist);
-	}
-	else if(index==3)
-	{
-	  location = new Vector3(square_dist-2,0,square_dist-2);
-	  sphere.transform.position = new Vector3(-square_dist, 1.5F, -square_dist);
+	    goal = GameObject.CreatePrimitive(PrimitiveType.Cube);
+	    goal.name = "goal"+index.ToString();
+	    goal.transform.localScale = new Vector3(40.0f,2.0f,2.0f);
+	    
+	    if(index%2==0)
+	    {
+		clone.GetComponent<Renderer>().material.color = new Color(0.0f, 0.5f, 1.0f);
+		goal.GetComponent<Renderer>().material.color = new Color(0.0f, 0.5f, 1.0f);	
+		location = new Vector3(4+(index-numOfWalkers/2)*4.0f,0,square_dist);
+		goal.transform.position = new Vector3(0.0F, 0.5F, -square_dist-2);
+	    }
+	    else
+	    {
+		clone.GetComponent<Renderer>().material.color = new Color(1.0f, 0.5f, 0.0f);
+		goal.GetComponent<Renderer>().material.color = new Color(1.0f, 0.5f, 0.0f);	
+		location = new Vector3(4+(index-1-numOfWalkers/2)*4.0f,0,-square_dist);
+		goal.transform.position = new Vector3(0.0F, 0.5F, square_dist+2);
+	    }
+
+	    clone.GetComponent<QAgent>().setGoal(goal);
 	}
 
 	clone.GetComponent<QAgent>().setResetPose(location,pose);
 
+	
 	// draw sector state
         if (!TurnOnSector)
             clone.GetComponent<DrawSector>().enabled = false;
-
+	
 	// draw indicator reward
         if (!TurnOnTriangleIndicator)
             clone.GetComponent<QAgent>().turn_triangle_indicator(false);
         else
-            clone.GetComponent<QAgent>().turn_triangle_indicator(true);
-
+            clone.GetComponent<QAgent>().turn_triangle_indicator(true);	
+	
 	// set time-scale
         if (Learning)
             clone.GetComponent<QAgent>().setTimeScale(LearningTimeScale);
@@ -336,8 +354,6 @@ public class PopulateScene : MonoBehaviour
 	// set timing details
 	clone.GetComponent<QAgent>().setTimePerUpdate(time_per_update);
 	clone.GetComponent<QAgent>().reset();
-
-	clone.GetComponent<QAgent>().setGoal(sphere);
 
 	// animation
         if (AnimationOff) Destroy(clone.GetComponent<Animator>());
