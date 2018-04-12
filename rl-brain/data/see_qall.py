@@ -10,7 +10,6 @@ import argparse
 plt.close('all')
 
 # parse world propeties
-tag = ["goal","collide"];
 parser = argparse.ArgumentParser(description='Plot reward for n agents.')
 parser.add_argument("-n", "--num_agents", type=int, help='number of agents')
 parser.add_argument("-o", "--num_objectives", type=str, help='number of objectives')
@@ -59,7 +58,7 @@ def plot_timed_q():
     #plt.fill_between(range(Q.shape[0]), Q_mu-Q_std, Q_mu+Q_std, alpha=0.2, edgecolor='#1B2ACC', facecolor='#089FFF',linewidth=4, linestyle='dashdot', antialiased=True)
 
 #plot_timed_q()
-qmin = -1.0; qmax = 1.0;
+qmin = 0.0; qmax = 3.0;
 
 for agent in range(0,NUM_AGENTS):
 
@@ -78,13 +77,12 @@ for agent in range(0,NUM_AGENTS):
 
     T = Q.shape[0];
 
-    print("agent:"+ str(agent) +" #updates:",Q.shape[0])
-    print(Q.sum())
+    print("agent:"+ str(agent) +" #updates:",Q.shape[0], "sum(Q)=", Q.sum())
 
-    im = plt.subplot(1,NUM_AGENTS,agent+1)
-    plt.imshow(Q[T-1,:,:],cmap='binary',interpolation="none")
-    plt.ylabel('place cell index')
-    plt.xlabel('action index')
+    im = plt.subplot(NUM_AGENTS,1,agent+1)
+    plt.imshow(Q[T-1,:,:].T,cmap='binary',interpolation="none")
+    plt.xlabel('place cell index')
+    plt.ylabel('action index')
     plt.title("Agent "+str(agent))
     plt.clim(qmin,qmax)
     plt.colorbar(orientation="horizontal")

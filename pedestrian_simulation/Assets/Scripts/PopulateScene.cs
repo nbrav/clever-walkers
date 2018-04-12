@@ -23,10 +23,13 @@ public class PopulateScene : MonoBehaviour
     float LearningTimeScale = 5.0f;
 
     [SerializeField]
-    bool TurnOnSector = false;
+    bool VizCollisionCells = true;
 
     [SerializeField]
-    bool TurnOnTriangleIndicator = false;
+    bool VizPlaceCells = false;
+
+    [SerializeField]
+    bool VizRewards = false;
 
     [SerializeField]
     GameObject ZombiePrefab;
@@ -312,21 +315,22 @@ public class PopulateScene : MonoBehaviour
 	{
 	    goal = GameObject.CreatePrimitive(PrimitiveType.Cube);
 	    goal.name = "goal"+index.ToString();
-	    goal.transform.localScale = new Vector3(40.0f,2.0f,2.0f);
 	    
 	    if(index%2==0)
 	    {
 		clone.GetComponent<Renderer>().material.color = new Color(0.0f, 0.5f, 1.0f);
 		goal.GetComponent<Renderer>().material.color = new Color(0.0f, 0.5f, 1.0f);	
 		location = new Vector3(4+(index-numOfWalkers/2)*4.0f,0,square_dist);
-		goal.transform.position = new Vector3(0.0F, 0.5F, -square_dist-2);
+		goal.transform.position = new Vector3((1+index-numOfWalkers/2)*4.0f, 0.5F, -square_dist);
+		goal.transform.localScale = new Vector3(2.0f,2.0f,2.0f);
 	    }
 	    else
 	    {
 		clone.GetComponent<Renderer>().material.color = new Color(1.0f, 0.5f, 0.0f);
 		goal.GetComponent<Renderer>().material.color = new Color(1.0f, 0.5f, 0.0f);	
-		location = new Vector3(4+(index-1-numOfWalkers/2)*4.0f,0,-square_dist);
-		goal.transform.position = new Vector3(0.0F, 0.5F, square_dist+2);
+		location = new Vector3((index-1-numOfWalkers/2)*4.0f,0,-square_dist);
+		goal.transform.position = new Vector3((index-numOfWalkers/2)*4.0f, 0.5F, square_dist);
+		goal.transform.localScale = new Vector3(2.0f,2.0f,2.0f);
 	    }
 
 	    clone.GetComponent<QAgent>().setGoal(goal);
@@ -336,11 +340,11 @@ public class PopulateScene : MonoBehaviour
 
 	
 	// draw sector state
-        if (!TurnOnSector)
+        if (!VizCollisionCells)
             clone.GetComponent<DrawSector>().enabled = false;
 	
 	// draw indicator reward
-        if (!TurnOnTriangleIndicator)
+        if (!VizRewards)
             clone.GetComponent<QAgent>().turn_triangle_indicator(false);
         else
             clone.GetComponent<QAgent>().turn_triangle_indicator(true);	

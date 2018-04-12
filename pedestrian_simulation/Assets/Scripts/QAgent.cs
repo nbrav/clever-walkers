@@ -31,6 +31,7 @@ public class QAgent : MonoBehaviour
     int NUM_PC=225;
     float M=15.0f,N=15.0f;
     float PC_SIZE = 2.5f;
+    float sigma = 1.0f;
 
     // action-space parameters
     float[] speed = new float[]{0.0f, 0.5f, 1.0f};
@@ -41,6 +42,11 @@ public class QAgent : MonoBehaviour
     ShowCollision show_collision;
     private string[] ray_colour_code = new string[] { "ANNULUS_COLOUR", "SECTOR_COLOUR" };
 
+    // draw circle for place-cells
+    public DrawCircle _circlePrefab;
+    List<DrawCircle> circleToDraw = new List<DrawCircle>();
+    float pc_radius = 1.0f;
+    
     // whatever this is for..
     [SerializeField]
     GameObject dummyNavMeshAgent;
@@ -73,6 +79,21 @@ public class QAgent : MonoBehaviour
     {
         Application.targetFrameRate = frame_rate;
         Screen.fullScreen = true;
+
+	/* visualize egocentric states */
+      
+      Transform[] trans = this.gameObject.GetComponentsInChildren<Transform>(true);
+      foreach (Transform t in trans)
+      {
+	if (t.name == "Canvas")
+	{
+	    show_collision = t.GetComponent<ShowCollision>();
+	    Debug.Log(show_collision);
+	}
+      }
+      show_collision.UntriggerIndicator(Color.red);      
+      show_collision.UntriggerIndicator(Color.blue);      
+
     }
 
     // Intializating Unity
@@ -83,18 +104,7 @@ public class QAgent : MonoBehaviour
       /* egocentric state set-up */
       
       state_array = new float[angle_sector.Length-1, radius_annulus.Length, 10]; //TODO: dicretize angle generically
-              
-      /* visualize egocentric states */
-      
-      /*Transform[] trans = this.gameObject.GetComponentsInChildren<Transform>(true);
-      foreach (Transform t in trans)
-      {
-	if (t.name == "Canvas")
-	    show_collision = t.GetComponent<ShowCollision>();
-      }
-      show_collision.UntriggerIndicator();
-      */
-      
+                    
       /* allcentric place-cell set-up */
 
       int pc_idx=0;
@@ -113,7 +123,11 @@ public class QAgent : MonoBehaviour
 	  placecell[pc_idx,0] = (x - M/2.0f + 0.5f)*PC_SIZE; // + UnityEngine.Random.Range(-2,2);
 	  placecell[pc_idx,1] = (y - N/2.0f + 0.5f)*PC_SIZE; // + UnityEngine.Random.Range(-2,2);
 	  placecell[pc_idx,2] = 0.0f;
-	  pc_idx++;
+
+	  circleToDraw.Add(Instantiate(_circlePrefab));
+	  //circleToDraw[pc_idx].SetupCircle(new Vector3(placecell[pc_idx,0],0.0f,placecell[pc_idx,1]), pc_radius, new Color(placecell[pc_idx,2],1-placecell[pc_idx,2], 0.0f));
+	    
+	  pc_idx++;	  
 	}
       }
       
@@ -163,7 +177,7 @@ public class QAgent : MonoBehaviour
     
       _action = action;
 
-      do_jump_action(action_to_angle(_action), action_to_speed(_action)); 
+      do_jump_action(action_to_angle(_action), action_to_speed(_action));
     }
 
     // instantaneous translation+rotation
@@ -181,8 +195,8 @@ public class QAgent : MonoBehaviour
 	gameObject.GetComponent<Rigidbody>().velocity = Vector3.zero;
 	
 	// visualize action vectors
-	//Vector3 ray_vector = transform.position;
-	//DrawLine.DrawLine(ray_origin, ray_vector, Color.black, 1.0);
+	Vector3 ray_vector = next_position;
+	//DrawLine(ray_origin, ray_vector, Color.red);
     }
 
     /*---------------------------------------------------------------
@@ -279,7 +293,6 @@ public class QAgent : MonoBehaviour
     --------------------- */
     void simulate_hippocampus()
     {
-      float sigma = 1.0f;
       for(int pc_idx=0; pc_idx<NUM_PC; pc_idx++)
       {
 	float dis1 = transform.position.x - placecell[pc_idx,0]; // TODO /2sigma2
@@ -287,6 +300,7 @@ public class QAgent : MonoBehaviour
 	placecell[pc_idx,2] = Mathf.Round(Mathf.Exp(-(dis1*dis1+dis2*dis2)/2/sigma/sigma)*100)/100;
 
 	Debug.DrawRay(new Vector3(placecell[pc_idx,0], 0.0f, placecell[pc_idx,1]), Vector3.up, Color.red);
+	//circleToDraw[pc_idx].UpdateMeshColor(new Color(placecell[pc_idx,2],1-placecell[pc_idx,2], 0.0f));
       }
     }
 
@@ -389,9 +403,9 @@ public class QAgent : MonoBehaviour
     {
       if(col.gameObject == goalObject)
       {
-	//Debug.Log("Reward!");
+	Debug.Log("Reward!");
         if (turnOnTriangleIndicator)
-	  show_collision.TriggerIndicator();
+	    show_collision.TriggerIndicator(Color.blue);
 	
 	reward_goal = 1.0f;
       }      
@@ -400,7 +414,7 @@ public class QAgent : MonoBehaviour
       {
 	//Debug.Log("Collision!");
 	if (turnOnTriangleIndicator)
-	  show_collision.TriggerIndicator();
+	  show_collision.TriggerIndicator(Color.red);
 	
 	reward_collision = -1.0f;
       }
@@ -410,16 +424,12 @@ public class QAgent : MonoBehaviour
     {
       if(col.gameObject == goalObject)
       {
-	if (turnOnTriangleIndicator)
-	  show_collision.UntriggerIndicator();
-	
-	//reward_goal = 0.0f;
       }
       
       if(col.gameObject.tag == "pedestrian" || col.gameObject.tag == "wall" )
       {
-	if (turnOnTriangleIndicator)
-	  show_collision.UntriggerIndicator();
+	  if (turnOnTriangleIndicator)
+	    show_collision.UntriggerIndicator(Color.red);
 	
 	reward_collision = 0.0f;
       } 
@@ -473,6 +483,9 @@ public class QAgent : MonoBehaviour
 	
 	reward_goal = 0.0f; reward_collision = 0.0f;
 	agent_goal_distance = -1.0f;
+
+	if (turnOnTriangleIndicator)
+	    show_collision.UntriggerIndicator(Color.blue);
 	
 	position_previous = Vector3.zero;
     }
@@ -557,4 +570,19 @@ public class QAgent : MonoBehaviour
     {
         turnOnTriangleIndicator = flag;
     }
+
+    void DrawLine(Vector3 start, Vector3 end, Color color, float duration = 10f)
+    {
+        GameObject myLine = new GameObject();
+        myLine.transform.position = start;
+        myLine.AddComponent<LineRenderer>();
+        LineRenderer lr = myLine.GetComponent<LineRenderer>();
+        lr.material = new Material(Shader.Find("Particles/Alpha Blended Premultiply"));
+        lr.SetColors(color, color);
+        lr.SetWidth(0.1f, 0.1f);
+        lr.SetPosition(0, start);
+        lr.SetPosition(1, end);
+        GameObject.Destroy(myLine, duration);
+    }
+
 }

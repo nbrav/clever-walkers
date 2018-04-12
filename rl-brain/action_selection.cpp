@@ -10,6 +10,7 @@
 #include "Utils.cpp"
 
 #define PI 3.14159265
+
 using namespace std;
 
 void action_selection (double* policy_behaviour, double* policy_goal, int action_previous, double* policy_collide, float heading_direction, bool DEBUG)
@@ -25,7 +26,8 @@ void action_selection (double* policy_behaviour, double* policy_goal, int action
   }
   
   // initialize previous action policy
-  double policy_sum = 0; double _tau_previous = 0.5;
+  double _tau_previous = 2.0;
+  double policy_sum = 0; 
   for(int action_idx=0; action_idx<action_size; action_idx++)
   {
     policy_prev[action_idx] = exp((action_previous==action_idx)/_tau_previous);
@@ -35,11 +37,14 @@ void action_selection (double* policy_behaviour, double* policy_goal, int action
     policy_prev[action_idx] /= policy_sum;
   
   // behaviour <- pi_prev * goal * collide
+  double _tau_behaviour = 0.1;
   for(int action_idx=0; action_idx<action_size; action_idx++)
   {
-    policy_behaviour[action_idx] = 1;//pow(policy_prev[action_idx],1);
-    policy_behaviour[action_idx] *= pow(policy_goal[action_idx],10); 
-    policy_behaviour[action_idx] *= 1;//pow(policy_collide[action_idx],10);
+    policy_behaviour[action_idx] = pow(policy_prev[action_idx],1);
+    policy_behaviour[action_idx] *= pow(policy_goal[action_idx],1); 
+    policy_behaviour[action_idx] *= pow(policy_collide[action_idx],1);
+
+    policy_behaviour[action_idx] = pow(policy_behaviour[action_idx],1.0/_tau_behaviour);
   }  
   
   // compute and normalize pi_final
@@ -50,8 +55,9 @@ void action_selection (double* policy_behaviour, double* policy_goal, int action
   for(int action_idx=0; action_idx<action_size; action_idx++)
   {
     policy_behaviour[action_idx] /= policy_sum;
-    if(DEBUG) cout<<"["<<round(policy_prev[action_idx]*100)/100<<"x"<<round(policy_goal[action_idx]*100)/100<<"x"<<round(policy_collide[action_idx]*100)/100<<"="<<round(policy_behaviour[action_idx]*100)/100<<"]";
+    if(DEBUG) cout<<"["<<round(policy_prev[action_idx]*100)/100<<"x"<<round(policy_goal[action_idx]*100)/100<<"="<<round(policy_behaviour[action_idx]*100)/100<<"]";
   }
+  // <<"x"<<round(policy_collide[action_idx]*100)/100
     
   delete[] policy_goal;
   delete[] policy_collide;

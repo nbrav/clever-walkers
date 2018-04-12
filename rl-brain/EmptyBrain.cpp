@@ -1,10 +1,8 @@
 #define _VERBOSE_UDP false
 #define _VERBOSE_AS false
 
-#define LEARNING true
+#define LEARNING false
 #define SOFTMAX true
-
-#define OMEGA_LEARNING false
 
 #define PORT 7890
 #define BUFSIZE 2048
@@ -119,7 +117,7 @@ int main(int argc, char **argv)
 	  printf("\nGearing up \"%s\" system for %d rl-brain..\n", processor_name, _size);
 
 	// Learning and trial meta-paremeters
-	float Tr = 100*1000, Te = 10000;
+	float Tr = 1000*1000, Te = 10000;
 
 	if(LEARNING)
 	{
@@ -128,7 +126,7 @@ int main(int argc, char **argv)
 	}
 	else
 	{
-	  brain_goal._omega = 0.001;
+	  brain_goal._omega = 0.01;
 	  brain_collide._omega = 0.1; // WORKING WITH 0.5!
 	}
 	
@@ -236,20 +234,13 @@ int main(int argc, char **argv)
 	  // ----------------simulate the "Brain"-------------------------	  
 	  msgcnt++;
 
-	  // omega-learning
-	  if(msgcnt!=1)
-	  {
-	    //brain_goal.update_omega(prob_behave,policy_goal[action]);
-	    //brain_collide.update_omega(prob_behave,policy_collide[action_collide]);
-	  }
-	  
 	  // a' ~ Q(.|s',A)
 	  policy_goal = brain_goal.get_policy(num_phi_goal,phi_goal_idx,phi_goal_val);
 	  policy_collide = brain_collide.get_policy(num_phi_collide,phi_collide_idx,phi_collide_val);
 	  geocentricate(policy_collide, 8, 3, heading_direction); // important!  
 
 	  // b = \prod_i pi_i
-	  action_selection(policy_behaviour, policy_goal, action_previous, policy_collide, heading_direction, _master*_VERBOSE_AS*(msgcnt%1000==0));
+	  action_selection(policy_behaviour, policy_goal, action_previous, policy_collide, heading_direction, _master*_VERBOSE_AS);
 
 	  action = get_softmax_action(policy_behaviour,8*3);
 	  action_collide = egocentricate(action,8,3,heading_direction);
@@ -259,8 +250,8 @@ int main(int argc, char **argv)
 	  // w += alpha*(r'+gamma*q(s',a')-q(s,a))
 	  if(LEARNING)
 	  {
-	    //brain_goal.update_importance_samples(policy_goal, policy_behaviour, action);
-	    //brain_collide.update_importance_samples(policy_collide, policy_behaviour, action);
+	    brain_goal.update_importance_samples(policy_goal, policy_behaviour, action);
+	    brain_collide.update_importance_samples(policy_collide, policy_behaviour, action);
 	    
 	    brain_goal.advance_timestep(num_phi_goal,phi_goal_idx,phi_goal_val,action,reward_goal,timestep);
 	    //brain_collide.advance_timestep(num_phi_collide,phi_collide_idx,phi_collide_val,action_collide,reward_collide,timestep);
