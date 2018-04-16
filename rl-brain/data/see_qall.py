@@ -59,6 +59,7 @@ def plot_timed_q():
 
 #plot_timed_q()
 qmin = 0.0; qmax = 3.0;
+plt.figure(figsize=(20,8))
 
 for agent in range(0,NUM_AGENTS):
 
@@ -84,7 +85,7 @@ for agent in range(0,NUM_AGENTS):
     plt.xlabel('place cell index')
     plt.ylabel('action index')
     plt.title("Agent "+str(agent))
-    plt.clim(qmin,qmax)
+    #plt.clim(qmin,qmax)
     plt.colorbar(orientation="horizontal")
 
 plt.suptitle("Q-values (learning)\nwith "+str(NUM_AGENTS)+" agents")

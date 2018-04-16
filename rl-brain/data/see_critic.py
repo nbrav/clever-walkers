@@ -21,10 +21,9 @@ if(tag=="goal"):
 else:
     state_size_x = 100; state_size_y = 10; action_size=8*3;
 
-#plot_timed_q()
-vmin = -0.5; vmax = 5.0;
+vmin = 0.0; vmax = 0.1;
 
-plt.figure(figsize=(10,4))
+plt.figure(figsize=(8,20))
 
 for agent in range(0,NUM_AGENTS):
 
@@ -52,7 +51,7 @@ for agent in range(0,NUM_AGENTS):
     plt.xlabel('action index')
     #plt.title("Agent "+str(agent))
     plt.clim(vmin,vmax)
-    plt.colorbar(orientation="horizontal")
+    #plt.colorbar(orientation="horizontal")
 
 #plt.suptitle("Values-function (learning)\nwith "+str(NUM_AGENTS)+" agents")
 plt.show()

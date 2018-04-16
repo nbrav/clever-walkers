@@ -1,7 +1,7 @@
 #define _VERBOSE_UDP false
 #define _VERBOSE_AS false
 
-#define LEARNING false
+#define LEARNING true
 #define SOFTMAX true
 
 #define PORT 7890
@@ -117,11 +117,13 @@ int main(int argc, char **argv)
 	  printf("\nGearing up \"%s\" system for %d rl-brain..\n", processor_name, _size);
 
 	// Learning and trial meta-paremeters
-	float Tr = 1000*1000, Te = 10000;
+	float Tr = 200*1000, Te = 10000;
 
 	if(LEARNING)
 	{
+	  // Q-learning //
 	  brain_goal._omega = min(1.0f, max(0.001f, float(Tr)/Tr));
+	  //brain_goal._omega = 1.0;
 	  brain_collide._omega = min(1.0f, max(0.1f, float(Tr)/Tr));
 	}
 	else
@@ -156,7 +158,7 @@ int main(int argc, char **argv)
 	      brain_goal.trial_log(float(reward_goal_trial)); brain_collide.trial_log(float(reward_collide_trial));
 	      reward_goal_trial=0; reward_collide_trial=0;
 
-	      if(LEARNING && SOFTMAX)
+	      if(LEARNING)
 	      {
 		brain_goal._omega = min(1.0f, max(0.001f, float(Tr-timestep)/Tr));
 		brain_collide._omega = min(1.0f, max(0.01f, float(Tr-timestep)/Tr));
@@ -200,25 +202,25 @@ int main(int argc, char **argv)
 	  
 	  // Extract allocentric state
 	  num_phi_goal = int(sr_local[sr_local_idx++]);	  
-	  //if(_VERBOSE_UDP && _master) cout<<"\n#S="<<num_phi_goal<<" (";
+	  if(_VERBOSE_UDP && _master) cout<<"\n#S="<<num_phi_goal<<" (";
 	  for(int phi_idx=0; phi_idx<num_phi_goal; phi_idx++)
 	  {
 	    phi_goal_idx[phi_idx] = int(sr_local[sr_local_idx++]);
 	    phi_goal_val[phi_idx] = sr_local[sr_local_idx++];
-	    //if(_VERBOSE_UDP && _master) cout<<phi_goal_idx[phi_idx]<<"->"<<phi_goal_val[phi_idx]<<",";
+	    if(_VERBOSE_UDP && _master) cout<<phi_goal_idx[phi_idx]<<"->"<<phi_goal_val[phi_idx]<<",";
 	  }
-	  //if(_VERBOSE_UDP && _master) cout<<")";
+	  if(_VERBOSE_UDP && _master) cout<<")";
 	  	  
 	  //Extract egocentric state vector
 	  num_phi_collide = sr_local[sr_local_idx++]; 
-	  if(_VERBOSE_UDP && _master) cout<<"\n#X="<<num_phi_collide<<" (";
+	  //if(_VERBOSE_UDP && _master) cout<<"\n#X="<<num_phi_collide<<" (";
 	  for(int phi_idx=0; phi_idx<num_phi_collide; phi_idx++)
 	  {
 	    phi_collide_idx[phi_idx] = int(sr_local[sr_local_idx++]);
 	    phi_collide_val[phi_idx] = 1;
-	    if(_VERBOSE_UDP && _master) cout<<phi_collide_idx[phi_idx]<<",";
+	    //if(_VERBOSE_UDP && _master) cout<<phi_collide_idx[phi_idx]<<",";
 	  }
-	  if(_VERBOSE_UDP && _master) cout<<")";
+	  //if(_VERBOSE_UDP && _master) cout<<")";
 
 	  // extract rewards and heading direction
 	  reward_goal = float(sr_local[int(sr_local_idx++)]);
@@ -250,20 +252,27 @@ int main(int argc, char **argv)
 	  // w += alpha*(r'+gamma*q(s',a')-q(s,a))
 	  if(LEARNING)
 	  {
-	    brain_goal.update_importance_samples(policy_goal, policy_behaviour, action);
-	    brain_collide.update_importance_samples(policy_collide, policy_behaviour, action);
+	    //brain_goal.update_importance_samples(policy_goal, policy_behaviour, action);
+	    //brain_collide.update_importance_samples(policy_collide, policy_behaviour, action);
 	    
 	    brain_goal.advance_timestep(num_phi_goal,phi_goal_idx,phi_goal_val,action,reward_goal,timestep);
-	    //brain_collide.advance_timestep(num_phi_collide,phi_collide_idx,phi_collide_val,action_collide,reward_collide,timestep);
+	    brain_collide.advance_timestep(num_phi_collide,phi_collide_idx,phi_collide_val,action_collide,reward_collide,timestep);
 	  }
 	  
-	  // s = s'
+	  // s = s' 
 	  brain_goal.set_state(num_phi_goal,phi_goal_idx,phi_goal_val);
 	  brain_collide.set_state(num_phi_collide, phi_collide_idx, phi_collide_val);
 	  
+	  if(action<0 && action>=24)
+	  {
+	    cout<<"\nInvalid action range!";
+	    action = (int)rand()/RAND_MAX;
+	  }
+
 	  // a = a'
 	  brain_goal.set_action(action);
 	  brain_collide.set_action(action_collide);
+
 	  
 	  timestep++;
 

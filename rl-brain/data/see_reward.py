@@ -19,7 +19,7 @@ TRAIN_PATH = "./reward-punishment.";
 TEST_PATH = "./trial.";
 
 REWARD_PATH = [TEST_PATH,];
-BIN_SIZE    = [100];
+BIN_SIZE    = [10];
 
 idx_colour = ['r','b','g','y','k','r','b','g','y','k']
 idx_legend = []

@@ -32,6 +32,9 @@ public class PopulateScene : MonoBehaviour
     bool VizRewards = false;
 
     [SerializeField]
+    bool VizTrail = true;
+
+    [SerializeField]
     GameObject ZombiePrefab;
 
     [SerializeField]
@@ -321,14 +324,14 @@ public class PopulateScene : MonoBehaviour
 		clone.GetComponent<Renderer>().material.color = new Color(0.0f, 0.5f, 1.0f);
 		goal.GetComponent<Renderer>().material.color = new Color(0.0f, 0.5f, 1.0f);	
 		location = new Vector3(4+(index-numOfWalkers/2)*4.0f,0,square_dist);
-		goal.transform.position = new Vector3((1+index-numOfWalkers/2)*4.0f, 0.5F, -square_dist);
+		goal.transform.position = new Vector3(4+(index-numOfWalkers/2)*4.0f, 0.5F, -square_dist);
 		goal.transform.localScale = new Vector3(2.0f,2.0f,2.0f);
 	    }
 	    else
 	    {
 		clone.GetComponent<Renderer>().material.color = new Color(1.0f, 0.5f, 0.0f);
 		goal.GetComponent<Renderer>().material.color = new Color(1.0f, 0.5f, 0.0f);	
-		location = new Vector3((index-1-numOfWalkers/2)*4.0f,0,-square_dist);
+		location = new Vector3((index-numOfWalkers/2)*4.0f,0,-square_dist);
 		goal.transform.position = new Vector3((index-numOfWalkers/2)*4.0f, 0.5F, square_dist);
 		goal.transform.localScale = new Vector3(2.0f,2.0f,2.0f);
 	    }

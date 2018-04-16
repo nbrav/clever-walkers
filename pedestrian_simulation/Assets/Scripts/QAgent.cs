@@ -82,17 +82,16 @@ public class QAgent : MonoBehaviour
 
 	/* visualize egocentric states */
       
-      Transform[] trans = this.gameObject.GetComponentsInChildren<Transform>(true);
-      foreach (Transform t in trans)
-      {
-	if (t.name == "Canvas")
+	Transform[] trans = this.gameObject.GetComponentsInChildren<Transform>(true);
+	foreach (Transform t in trans)
 	{
-	    show_collision = t.GetComponent<ShowCollision>();
-	    Debug.Log(show_collision);
+	    if (t.name == "Canvas")
+	    {
+		show_collision = t.GetComponent<ShowCollision>();
+	    }
 	}
-      }
-      show_collision.UntriggerIndicator(Color.red);      
-      show_collision.UntriggerIndicator(Color.blue);      
+	show_collision.UntriggerIndicator(Color.red);      
+	show_collision.UntriggerIndicator(Color.blue);      
 
     }
 
@@ -124,7 +123,7 @@ public class QAgent : MonoBehaviour
 	  placecell[pc_idx,1] = (y - N/2.0f + 0.5f)*PC_SIZE; // + UnityEngine.Random.Range(-2,2);
 	  placecell[pc_idx,2] = 0.0f;
 
-	  circleToDraw.Add(Instantiate(_circlePrefab));
+	  //circleToDraw.Add(Instantiate(_circlePrefab));
 	  //circleToDraw[pc_idx].SetupCircle(new Vector3(placecell[pc_idx,0],0.0f,placecell[pc_idx,1]), pc_radius, new Color(placecell[pc_idx,2],1-placecell[pc_idx,2], 0.0f));
 	    
 	  pc_idx++;	  
@@ -341,9 +340,6 @@ public class QAgent : MonoBehaviour
 	  phi.Add(pc_idx);
 	  phi.Add(placecell[pc_idx,2]);
 	}
-	Debug.DrawRay(new Vector3(placecell[pc_idx,0], 0.0f, placecell[pc_idx,1])+Vector3.up,		      
-		      Vector3.up*placecell[pc_idx,2],
-		      Color.green);	
       }      
       return phi;
     }
@@ -403,7 +399,7 @@ public class QAgent : MonoBehaviour
     {
       if(col.gameObject == goalObject)
       {
-	Debug.Log("Reward!");
+	//Debug.Log("Reward!");
         if (turnOnTriangleIndicator)
 	    show_collision.TriggerIndicator(Color.blue);
 	
@@ -563,7 +559,12 @@ public class QAgent : MonoBehaviour
     /* utilities: get angle from action coding (in allocentric frame) */
     float action_to_speed(int actionIndex)
     {
-      return speed[(int)(Math.Floor((double)actionIndex/8))];
+	if((int)(Math.Floor((double)actionIndex/8))<0 || (int)(Math.Floor((double)actionIndex/8))>=3)
+	{
+	    Debug.Log(actionIndex);
+	    return 2;
+	}
+	return speed[(int)(Math.Floor((double)actionIndex/8))];
     }
   
     public void turn_triangle_indicator(bool flag)
