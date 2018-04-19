@@ -32,6 +32,9 @@ public class PopulateScene : MonoBehaviour
     bool VizRewards = false;
 
     [SerializeField]
+    bool VizTrail = true;
+
+    [SerializeField]
     GameObject ZombiePrefab;
 
     [SerializeField]

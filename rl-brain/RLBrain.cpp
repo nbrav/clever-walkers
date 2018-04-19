@@ -17,15 +17,13 @@ class qbrain
   
   // meta-parameters
   float _alpha;                // Learning rate
-  float _gamma; // Discount factor for Q
+  float _gamma;                // Discount factor for Q
   float _epsilon;              // Greedy arbitration exploration
   float _lambda;               // Eligibility decay
   float _omega;                // Boltzmann constant + overloaded preference
   double _rho;                 // Importance-Sampling factor
   string _tag="def";
-  
-  int _state_size;
-  
+    
   private:
 
   // global parameters
@@ -33,20 +31,18 @@ class qbrain
   int _rank;
 
   // state
-  int *_phi_idx, *_phi_prime_idx;
-  float *_phi_val, *_phi_prime_val;
-  int _num_phi, _num_phi_prime;    
-  int* _state;
-  int _state_prime;
+  int _state_size;
+
+  int* _phi; // full state
+  int *_phi_idx, *_phi_prime_idx; // compressed phi indices
+  float *_phi_val, *_phi_prime_val; // compressed phi values
+  int _num_phi, _num_phi_prime; // compressed phi size
 
   // reward
-  float _reward;
-  int _reward_size;
-  float _rpe;    
+  float _reward, _rpe;    
 
   // action
-  int _action, _action_prime;
-  int _action_size;
+  int _action, _action_prime, _action_size;
 
   // actor traces/weights
   std::vector< std::vector<float> > _actor_e;
@@ -59,10 +55,7 @@ class qbrain
   // i/o files
   FILE *qvalue_outfile, *qvalue_infile;   //TODO: do we need two files for reading and writing?
   FILE *critic_outfile, *critic_infile;  
-  FILE *state_outfile;
-  FILE *action_outfile;
-  FILE *reward_outfile;
-  FILE *trial_outfile;
+  FILE *state_outfile, *action_outfile, *reward_outfile, *trial_outfile;
   char const *QVALUE_FILE, *CRITIC_FILE, *REWARD_FILE, *STATE_FILE, *ACTION_FILE, *TRIAL_FILE;
   
  public:
@@ -76,14 +69,15 @@ class qbrain
     parse_param();
     _state_size = state_size; // override default state-size
 
-    _state = new int[_state_size];
+    _phi = new int[_state_size];
     
     _num_phi=0; _phi_idx = new int[_state_size]; _phi_val = new float[_state_size];    
     _num_phi_prime=0; _phi_prime_idx = new int [_state_size]; _phi_prime_val = new float[_state_size];
 
+    // initialize state
     for(int idx=0;idx<_state_size; idx++)
     {
-      _state[idx]=0;
+      _phi[idx]=0;
       _phi_idx[idx]=0; _phi_val[idx] = 0.0f;
       _phi_prime_idx[idx]=0; _phi_prime_val[idx]=0.0f;
     }
@@ -102,7 +96,6 @@ class qbrain
     std::ifstream fs(("./data/qvalue."+_tag+"."+std::to_string(_rank)+".log").c_str());
     if(fs.is_open())
     {
-      // Read Q matrix from file
       qvalue_infile = fopen(("./data/qvalue."+_tag+"."+std::to_string(_rank)+".log").c_str(),"rb");
       fseek(qvalue_infile, -sizeof(float)*_state_size*_action_size, SEEK_END);
 
@@ -126,13 +119,11 @@ class qbrain
 	}
       }
     }
-
+    
     // initialize critic
     _critic_e.resize(_state_size);
     for (int state_idx=0; state_idx<_state_size; state_idx++)
-    {
       _critic_e[state_idx] = 0.0;
-    }
     
     std::ifstream fs_critic_w(("./data/critic."+_tag+"."+std::to_string(_rank)+".log").c_str());
     if(fs_critic_w.is_open())
@@ -142,16 +133,13 @@ class qbrain
 
       _critic_w.resize(_state_size);
       fread(&_critic_w[0], sizeof(float), _state_size, critic_infile);
-      
       fclose(critic_infile);   
     }
     else
     {
       _critic_w.resize(_state_size);
       for (int state_idx=0; state_idx<_state_size; state_idx++)
-      {
 	_critic_w[state_idx] = 0.0;
-      }
     }
     
     _reward = 0.0;
@@ -183,7 +171,7 @@ class qbrain
     _num_phi = -1;
     
     for(int idx=0;idx<_state_size; idx++)
-      _state[idx]=0;
+      _phi[idx]=0;
 
     _action = rand()%_action_size;
 
@@ -211,7 +199,7 @@ class qbrain
   void state_log()
   {
     state_outfile = fopen(("./data/state."+_tag+"."+std::to_string(_rank)+".log").c_str(), "ab"); //ab
-    fwrite(&_state[0], sizeof(int)*_state_size, 1, state_outfile);
+    fwrite(&_phi[0], sizeof(int)*_state_size, 1, state_outfile);
     fclose(state_outfile);    
   }
 
@@ -229,8 +217,8 @@ class qbrain
     fclose(reward_outfile);    
   }
 
-  void qvalue_log()
-  {
+  void actor_log()
+  {    
     qvalue_outfile = fopen(("./data/qvalue."+_tag+"."+std::to_string(_rank)+".log").c_str(), "ab");
     for (int state_idx=0; state_idx<_state_size; state_idx++)
       fwrite(&_actor_w[state_idx][0], sizeof(float), _action_size, qvalue_outfile);
@@ -250,16 +238,27 @@ class qbrain
   {
     _num_phi = num_phi;
 
+    float phi_sum=0;
+    
     for(int idx=0; idx<num_phi; idx++)
     {
       _phi_idx[idx] = phi_idx[idx];
       _phi_val[idx] = phi_val[idx];
+      phi_sum += _phi_val[idx];
     }
     
     for(int idx=0;idx<_state_size; idx++)
-      _state[idx]=0;
-    for(int idx=0; idx<_num_phi && phi_idx[idx]<_state_size; idx++)
-      _state[phi_idx[idx]]=phi_val[idx];
+      _phi[idx]=0;
+
+    for(int idx=0; idx<num_phi && phi_idx[idx]<_state_size; idx++)
+    {
+      _phi[phi_idx[idx]]=phi_val[idx]/phi_sum;
+
+      if(_phi_idx[idx]!=_phi_idx[idx]) cerr<<"\n===NANs in PHI_IDX!==="<<_tag;    
+      if(_phi_val[idx]!=_phi_val[idx]) cerr<<"\n===NANs in PHI_VAL!==="<<_tag;
+
+      //cout<<"\n"<<idx<<":"<<phi_idx[idx]<<","<<phi_val[phi_idx[idx]];
+    }
   }
 
   void set_action(int action)
@@ -280,16 +279,16 @@ class qbrain
     for(int action_idx=0; action_idx<_action_size; action_idx++)
       h[action_idx] = 0.0;    
 
-    // forall a: q_cap(s_t,A) = sum_i w_i*phi_i(s_t,A)
-    for(int action_idx=0; action_idx<_action_size; action_idx++)
-      for(int idx=0; idx<num_phi && phi_idx[idx]<_state_size; idx++)
+    // forall a: h(s_t,A) = sum_i w_i*phi_i(s_t,A)
+    for(int idx=0; idx<num_phi && phi_idx[idx]<_state_size; idx++)
+      for(int action_idx=0; action_idx<_action_size; action_idx++)
       {
 	h[action_idx] += _actor_w[phi_idx[idx]][action_idx] * _phi_val[idx];
 	hmax = (h[action_idx]>hmax)?h[action_idx]:hmax;
 
 	if(h[action_idx]!=h[action_idx]) cerr<<"\nNANs in Q_"<<_tag;
       }
-
+    
     for(int action_idx=0; action_idx<_action_size; action_idx++)
     {
       policy[action_idx] = exp((h[action_idx]-hmax)); // ACTOR-CRITIC?? /_omega
@@ -339,6 +338,17 @@ class qbrain
       _policy[action_idx] /= _policy_sum;
 
     return _policy;
+  }
+
+  float get_value(int num_phi, int* phi_idx, float* phi_val)
+  {
+    float _value=0.0;
+
+    // q_cap(s,a) = sum_i w_i*phi_i(s,a)
+    for(int idx=0; idx<num_phi; idx++)
+      _value += _critic_w[phi_idx[idx]]*phi_val[idx];
+    
+    return _value;
   }
 
   float get_rpe()
@@ -417,17 +427,21 @@ class qbrain
 
     _reward = reward;
     _time = time;
+    _num_phi_prime = num_phi_prime; _phi_prime_idx = phi_prime_idx;_phi_prime_val = phi_prime_val;
+    _action_prime = action_prime;
+    _reward = reward;
 
     if(_time%1000==0)
     {
-      qvalue_log();
+      actor_log();
       critic_log();
     }
     
     if(_num_phi<0)
       return;
-   
-    update_actor();
+    
+    //update_actor();
     update_critic();
+    update_qvalue();
   }  
 };

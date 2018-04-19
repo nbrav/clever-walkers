@@ -81,17 +81,16 @@ public class QAgent : MonoBehaviour
 
 	/* visualize egocentric states */
       
-      Transform[] trans = this.gameObject.GetComponentsInChildren<Transform>(true);
-      foreach (Transform t in trans)
-      {
-	if (t.name == "Canvas")
+	Transform[] trans = this.gameObject.GetComponentsInChildren<Transform>(true);
+	foreach (Transform t in trans)
 	{
-	    show_collision = t.GetComponent<ShowCollision>();
-	    Debug.Log(show_collision);
+	    if (t.name == "Canvas")
+	    {
+		show_collision = t.GetComponent<ShowCollision>();
+	    }
 	}
-      }
-      show_collision.UntriggerIndicator(Color.red);      
-      show_collision.UntriggerIndicator(Color.blue);      
+	show_collision.UntriggerIndicator(Color.red);      
+	show_collision.UntriggerIndicator(Color.blue);      
 
     }
 
@@ -340,9 +339,6 @@ public class QAgent : MonoBehaviour
 	  phi.Add(pc_idx);
 	  phi.Add(placecell[pc_idx,2]);
 	}
-	Debug.DrawRay(new Vector3(placecell[pc_idx,0], 0.0f, placecell[pc_idx,1])+Vector3.up,		      
-		      Vector3.up*placecell[pc_idx,2],
-		      Color.green);	
       }      
       return phi;
     }
@@ -555,7 +551,12 @@ public class QAgent : MonoBehaviour
     /* utilities: get angle from action coding (in allocentric frame) */
     float action_to_speed(int actionIndex)
     {
-      return speed[(int)(Math.Floor((double)actionIndex/8))];
+	if((int)(Math.Floor((double)actionIndex/8))<0 || (int)(Math.Floor((double)actionIndex/8))>=3)
+	{
+	    Debug.Log(actionIndex);
+	    return 2;
+	}
+	return speed[(int)(Math.Floor((double)actionIndex/8))];
     }
   
     public void turn_triangle_indicator(bool flag)

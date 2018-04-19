@@ -24,7 +24,7 @@ else:
 #plot_timed_q()
 #vmin = 0.0; vmax = 250.0;
 
-plt.figure(figsize=(10,4))
+plt.figure(figsize=(8,20))
 
 for agent in range(0,NUM_AGENTS):
 
