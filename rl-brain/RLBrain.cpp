@@ -340,17 +340,6 @@ class qbrain
     return _policy;
   }
 
-  float get_value(int num_phi, int* phi_idx, float* phi_val)
-  {
-    float _value=0.0;
-
-    // q_cap(s,a) = sum_i w_i*phi_i(s,a)
-    for(int idx=0; idx<num_phi; idx++)
-      _value += _critic_w[phi_idx[idx]]*phi_val[idx];
-    
-    return _value;
-  }
-
   float get_rpe()
   {
     return _reward
@@ -406,7 +395,7 @@ class qbrain
     for (int state_idx=0; state_idx<_state_size; state_idx++)
       _critic_w[state_idx] += _alpha * _rho * delta * _critic_e[state_idx];
   }
-  
+
   float get_value(int num_phi, int* phi_idx, float* phi_val)
   {
     float _value=0.0;
@@ -440,8 +429,7 @@ class qbrain
     if(_num_phi<0)
       return;
     
-    //update_actor();
+    update_actor();
     update_critic();
-    update_qvalue();
   }  
 };
