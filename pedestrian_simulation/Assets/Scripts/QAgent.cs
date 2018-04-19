@@ -19,7 +19,6 @@ public class QAgent : MonoBehaviour
     // reinforcement learning variables 
     int _action=0;
     float reward_collision = 0, reward_goal;
-    float agent_goal_distance = -1.0f;
 
     // ego-centric state-space parameters
     float[,,] state_array;
@@ -120,11 +119,11 @@ public class QAgent : MonoBehaviour
 	      break;
 	  }
 	  
-	  placecell[pc_idx,0] = (x - M/2.0f + 0.5f)*PC_SIZE; // + UnityEngine.Random.Range(-2,2);
-	  placecell[pc_idx,1] = (y - N/2.0f + 0.5f)*PC_SIZE; // + UnityEngine.Random.Range(-2,2);
+	  placecell[pc_idx,0] = (x - M/2.0f + 0.25f*(2.0f*(y%2)-1.0f))*PC_SIZE; // + UnityEngine.Random.Range(-2,2);
+	  placecell[pc_idx,1] = (y - N/2.0f - 0.5f)*PC_SIZE; // + UnityEngine.Random.Range(-2,2);
 	  placecell[pc_idx,2] = 0.0f;
 
-	  circleToDraw.Add(Instantiate(_circlePrefab));
+	  //circleToDraw.Add(Instantiate(_circlePrefab));
 	  //circleToDraw[pc_idx].SetupCircle(new Vector3(placecell[pc_idx,0],0.0f,placecell[pc_idx,1]), pc_radius, new Color(placecell[pc_idx,2],1-placecell[pc_idx,2], 0.0f));
 	    
 	  pc_idx++;	  
@@ -190,13 +189,13 @@ public class QAgent : MonoBehaviour
 	
 	// FIND IF IN BOUNDARY PLACE-CELL
 	if(at_edge(next_position)) return;
-	  
+
 	gameObject.GetComponent<Rigidbody>().position += gameObject.transform.forward * (action_speed);
 	gameObject.GetComponent<Rigidbody>().velocity = Vector3.zero;
-	
+
 	// visualize action vectors
 	Vector3 ray_vector = next_position;
-	//DrawLine(ray_origin, ray_vector, Color.red);
+	DrawLine(ray_origin, ray_vector, Color.red);
     }
 
     /*---------------------------------------------------------------
@@ -295,11 +294,11 @@ public class QAgent : MonoBehaviour
     {
       for(int pc_idx=0; pc_idx<NUM_PC; pc_idx++)
       {
-	float dis1 = transform.position.x - placecell[pc_idx,0]; // TODO /2sigma2
+	float dis1 = transform.position.x - placecell[pc_idx,0];
 	float dis2 = transform.position.z - placecell[pc_idx,1];
 	placecell[pc_idx,2] = Mathf.Round(Mathf.Exp(-(dis1*dis1+dis2*dis2)/2/sigma/sigma)*100)/100;
 
-	Debug.DrawRay(new Vector3(placecell[pc_idx,0], 0.0f, placecell[pc_idx,1]), Vector3.up, Color.red);
+	//Debug.DrawRay(new Vector3(placecell[pc_idx,0], 0.0f, placecell[pc_idx,1]), Vector3.up, Color.red);
 	//circleToDraw[pc_idx].UpdateMeshColor(new Color(placecell[pc_idx,2],1-placecell[pc_idx,2], 0.0f));
       }
     }
@@ -307,7 +306,7 @@ public class QAgent : MonoBehaviour
     // is the agent at the end of arena
     bool at_edge(Vector3 position)
     {
-	float sigma=1.0f, closest_x=-1.0f, closest_y=-1.0f, closest_dist=-1.0f; int pc_idx=0;
+	float closest_x=-1.0f, closest_y=-1.0f, closest_dist=-1.0f; int pc_idx=0;
 	
 	for(float x=0.0f; x<M; x++)
 	{
@@ -328,8 +327,8 @@ public class QAgent : MonoBehaviour
 	    return true;
 	else
 	    return false;
-    }	
-    
+    }
+
     List<float> code_placecells()
     {
       List<float> phi = new List<float>(); 
@@ -403,7 +402,6 @@ public class QAgent : MonoBehaviour
     {
       if(col.gameObject == goalObject)
       {
-	Debug.Log("Reward!");
         if (turnOnTriangleIndicator)
 	    show_collision.TriggerIndicator(Color.blue);
 	
@@ -412,7 +410,6 @@ public class QAgent : MonoBehaviour
       
       if(col.gameObject.tag == "pedestrian" || col.gameObject.tag == "wall" )
       {
-	//Debug.Log("Collision!");
 	if (turnOnTriangleIndicator)
 	  show_collision.TriggerIndicator(Color.red);
 	
@@ -437,13 +434,9 @@ public class QAgent : MonoBehaviour
 
     float shapped_reward_goal()
     {
-	float dist=0.0f;
-	if(agent_goal_distance != -1)
-	{
-	    dist=agent_goal_distance-Vector3.Distance(goalObject.transform.position, transform.position);
-	}
-	agent_goal_distance=Vector3.Distance(goalObject.transform.position, transform.position);
-	return dist/10.0f;
+	float dist = Mathf.Abs(Vector3.Distance(goalObject.transform.position, transform.position));
+	//Debug.Log(this.gameObject.ToString()+goalObject.ToString()+dist.ToString());
+	return 1.0f-Mathf.Min(dist/100.0f,1.0f);
     }
     
     float get_reward_goal()
@@ -476,16 +469,16 @@ public class QAgent : MonoBehaviour
 
     public void reset()
     {
-	//transform.position = defaultLocation;
-	transform.position = new Vector3(UnityEngine.Random.Range(-15,15),0,UnityEngine.Random.Range(-15,15));
-	
+	transform.position = defaultLocation;
+	//transform.position = new Vector3(UnityEngine.Random.Range(-15,15),0,UnityEngine.Random.Range(-15,15));	
 	transform.rotation = Quaternion.Euler(0.0f,UnityEngine.Random.Range(0,360),0.0f); //defaultPose;
 	
 	reward_goal = 0.0f; reward_collision = 0.0f;
-	agent_goal_distance = -1.0f;
 
 	if (turnOnTriangleIndicator)
+	{
 	    show_collision.UntriggerIndicator(Color.blue);
+	}
 	
 	position_previous = Vector3.zero;
     }
@@ -556,7 +549,6 @@ public class QAgent : MonoBehaviour
     /* utilities: get angle from action coding (in allocentric frame) */
     float action_to_angle(int actionIndex)
     {
-      //return (float)(actionIndex%36)*10.0f;
       return (float)(actionIndex%8)*45.0f;
     }
 

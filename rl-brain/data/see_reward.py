@@ -55,10 +55,10 @@ for goal_tag in tag:
 
             if goal_tag=="goal":
                 plt.ylabel('reward frequency \n(running average: '+str(BIN_SIZE[_set])+')')
-                plt.ylim(-0.1,1.1)
+                #plt.ylim(-0.1,1.1)
             else:
                 plt.ylabel('collision frequency \n(running average: '+str(BIN_SIZE[_set])+')')
-                plt.ylim(-0.1,4.1)
+                #plt.ylim(-0.1,4.1)
                 
             
         if goal_tag=="goal":

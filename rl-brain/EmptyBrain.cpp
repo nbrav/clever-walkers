@@ -1,7 +1,7 @@
 #define _VERBOSE_UDP false
 #define _VERBOSE_AS false
 
-#define LEARNING false
+#define LEARNING true
 #define SOFTMAX true
 
 #define PORT 7890
@@ -55,11 +55,11 @@ int main(int argc, char **argv)
 	qbrain brain_goal(_rank,"goal",225); // allocentric
 	qbrain brain_collide(_rank,"collide",1000); // egocentric
 	
-	int* phi_goal_idx; float* phi_goal_val; int num_phi_goal=0; // Allocentric state (scalar)
-	int* phi_goal_idx_prev; float* phi_goal_val_prev; int num_phi_goal_prev=0; // Allocentric state (scalar)
+	int* phi_goal_idx; float* phi_goal_val; int num_phi_goal=0; // Allocentric state 
+	int* phi_goal_idx_prev; float* phi_goal_val_prev; int num_phi_goal_prev=0; // Allocentric state 
 	
-	int* phi_collide_idx; float* phi_collide_val; int num_phi_collide=0; // Egocentric state (vector)
-	int* phi_collide_idx_prev; float* phi_collide_val_prev; int num_phi_collide_prev=0; // Egocentric state (vector)
+	int* phi_collide_idx; float* phi_collide_val; int num_phi_collide=0; // Egocentric state
+	int* phi_collide_idx_prev; float* phi_collide_val_prev; int num_phi_collide_prev=0; // Egocentric state
 
 	double *policy_goal, *policy_collide; double* policy_behaviour = new double[8*3];
 	int action=rand()%(8*3), timestep=0; float reward_goal=0.0, reward_collide=0.0;
@@ -117,7 +117,7 @@ int main(int argc, char **argv)
 	  printf("\nGearing up \"%s\" system for %d rl-brain..\n", processor_name, _size);
 
 	// Learning and trial meta-paremeters
-	float Tr = 1000*1000, Te = 10000;
+	float Tr = 100*1000, Te = 10000;
 
 	if(LEARNING)
 	{
@@ -250,8 +250,8 @@ int main(int argc, char **argv)
 	  // w += alpha*(r'+gamma*q(s',a')-q(s,a))
 	  if(LEARNING)
 	  {
-	    brain_goal.update_importance_samples(policy_goal, policy_behaviour, action);
-	    brain_collide.update_importance_samples(policy_collide, policy_behaviour, action);
+	    //brain_goal.update_importance_samples(policy_goal, policy_behaviour, action);
+	    //brain_collide.update_importance_samples(policy_collide, policy_behaviour, action);
 	    
 	    brain_goal.advance_timestep(num_phi_goal,phi_goal_idx,phi_goal_val,action,reward_goal,timestep);
 	    //brain_collide.advance_timestep(num_phi_collide,phi_collide_idx,phi_collide_val,action_collide,reward_collide,timestep);

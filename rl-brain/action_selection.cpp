@@ -42,7 +42,7 @@ void action_selection (double* policy_behaviour, double* policy_goal, int action
   {
     policy_behaviour[action_idx] = pow(policy_prev[action_idx],1);
     policy_behaviour[action_idx] *= pow(policy_goal[action_idx],1); 
-    policy_behaviour[action_idx] *= pow(policy_collide[action_idx],1);
+    policy_behaviour[action_idx] *= 1;//pow(policy_collide[action_idx],1);
 
     policy_behaviour[action_idx] = pow(policy_behaviour[action_idx],1.0/_tau_behaviour);
   }  

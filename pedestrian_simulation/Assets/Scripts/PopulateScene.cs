@@ -200,7 +200,7 @@ public class PopulateScene : MonoBehaviour
 	    if(state_reward[state_reward.Count-3]>0.0f)
 	    {
 	      reset_counter[idx]=0.0f;
-	    }	  	    
+	    }	  	    	  
 	  
 	  Buffer.BlockCopy(data_out_int, 0, data_out, 0, data_out.Length);	
 	  socket[idx].SendTo(data_out, sizeof(float)*data_out_int.Length, SocketFlags.None,Remote);
@@ -320,7 +320,7 @@ public class PopulateScene : MonoBehaviour
 	    {
 		clone.GetComponent<Renderer>().material.color = new Color(0.0f, 0.5f, 1.0f);
 		goal.GetComponent<Renderer>().material.color = new Color(0.0f, 0.5f, 1.0f);	
-		location = new Vector3(4+(index-numOfWalkers/2)*4.0f,0,square_dist);
+		location = new Vector3((1+index-numOfWalkers/2)*4.0f,0,square_dist);
 		goal.transform.position = new Vector3((1+index-numOfWalkers/2)*4.0f, 0.5F, -square_dist);
 		goal.transform.localScale = new Vector3(2.0f,2.0f,2.0f);
 	    }
@@ -328,7 +328,7 @@ public class PopulateScene : MonoBehaviour
 	    {
 		clone.GetComponent<Renderer>().material.color = new Color(1.0f, 0.5f, 0.0f);
 		goal.GetComponent<Renderer>().material.color = new Color(1.0f, 0.5f, 0.0f);	
-		location = new Vector3((index-1-numOfWalkers/2)*4.0f,0,-square_dist);
+		location = new Vector3((index-numOfWalkers/2)*4.0f,0,-square_dist);
 		goal.transform.position = new Vector3((index-numOfWalkers/2)*4.0f, 0.5F, square_dist);
 		goal.transform.localScale = new Vector3(2.0f,2.0f,2.0f);
 	    }
