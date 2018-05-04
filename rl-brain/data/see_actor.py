@@ -40,7 +40,7 @@ def create_patches(Q,ax):
         for y in range(Q.shape[1]):
             for x in range(Q.shape[0]):
 
-                sector = -int(a%8)*45+90; # action -> angle
+                sector = -int(a%8)*45+180; # action -> angle
                 sector = -sector+90;      # angle -> python angle
                 
                 speed = np.ceil((a+1)/8);    # action -> speed
@@ -65,8 +65,9 @@ fig = plt.figure(figsize=(10,8))
 ax1 = plt.subplot(1,1,1)
 ax1.set_xticks(()); ax1.set_yticks(());
 
-VIEW_QUIVER = False;
-#VIEW_QUIVER = True;
+VIEW_WEIGHTS = False;
+VIEW_QUIVER = True;
+VIEW_DYNAMICS = False
 
 if VIEW_QUIVER:
     
@@ -77,7 +78,7 @@ if VIEW_QUIVER:
 
     patches = create_patches(Q,ax1);
     
-else:
+if VIEW_WEIGHTS:
     
     for agent in range(0,NUM_AGENTS):
 
@@ -95,5 +96,22 @@ else:
 
         plt.colorbar(orientation="horizontal")
         plt.suptitle("Q-values (learning)\nwith "+str(NUM_AGENTS)+" agents")
+
+if VIEW_DYNAMICS:
+    
+    FILE_NAME = "qvalue."+tag+"."+str(agent)+".log";
+    qtable = np.fromfile(FILE_NAME,np.float32)
+    
+    Q = qtable.reshape(int(len(qtable)/state_size_x/state_size_y/action_size),state_size_x*state_size_y*action_size)
+
+    grad_Q = np.diff(Q,axis=0)
+    print("agent:"+ str(agent) +" #updates:",grad_Q.shape[0], "sum(Q)=", Q.sum())
+    
+    im = plt.subplot(1,1,1)
+    plt.plot(grad_Q,linewidth=1.5,alpha=0.5)
+    plt.xlabel('place cell index'); plt.ylabel('action index');
+    plt.title("Agent "+str(agent))
+    
+    plt.suptitle("Q-values (learning)\nwith "+str(NUM_AGENTS)+" agents")
 
 plt.show()

@@ -17,16 +17,19 @@ public class PopulateScene : MonoBehaviour
     bool Learning;
 
     [SerializeField]
-    bool AnimationOff;
+    float LearningTimeScale = 5.0f;
 
     [SerializeField]
-    float LearningTimeScale = 5.0f;
+    bool RandomReset;
+
+    [SerializeField]
+    bool AnimationOff;
 
     [SerializeField]
     bool VizCollisionCells = true;
 
     [SerializeField]
-    bool VizPlaceCells = false;
+    bool VizPlaceCell = false;
 
     [SerializeField]
     bool VizRewards = false;
@@ -112,119 +115,105 @@ public class PopulateScene : MonoBehaviour
     // FixedUpdate is called every 
     void FixedUpdate()
     {
-      IPEndPoint sender;
-      EndPoint Remote;
+	IPEndPoint sender;
+	EndPoint Remote;
       
-      Time.timeScale = LearningTimeScale;
-      FixedUpdateIndex++;
-      
-      if(agent.Length<numOfWalkers+numOfZombies)
-	return;
+	Time.timeScale = LearningTimeScale;
+	FixedUpdateIndex++;
+	
+	if(agent.Length<numOfWalkers+numOfZombies)
+	    return;
 
-      // check for active UDP queue / or abandon
-      for(int idx=0; idx<numOfWalkers; idx++)
-      {
-	if(socket[idx].Available<=0)
-	{	
-	  agent[idx].GetComponent<QAgent>().set_udp(-1);
-	  return;
-	}
-      }
-
-      float global_reset=0.0f;
-      for (int reset_idx=0; reset_idx<numOfWalkers; reset_idx++)
-	global_reset += reset_counter[reset_idx];
-	  
-      // execute brain update
-      try
-      {
-	display_string = "";
-
-	// receive all action
+	// check for active UDP queue / or abandon
 	for(int idx=0; idx<numOfWalkers; idx++)
 	{
-	  // finding any client
-	  sender = new IPEndPoint(IPAddress.Any, PORT+idx);
-	  Remote = (EndPoint)(sender);
-
-	  // receive action
-	  byte[] data_in = new byte[256];;
-	  
-	  socket[idx].ReceiveFrom(data_in,sizeof(int),0,ref Remote);	
-	  int action = System.BitConverter.ToInt32(data_in, 0);
-      	  
-	  // if local reset
-	  if(reset_counter[idx]<=0.0f && global_reset!=0.0f)
-	  {
-	    display_string += "AGENT "+idx.ToString()+" RESETED";
-
-	    agent[idx].GetComponent<QAgent>().set_udp(-1);
-
-	    float[] data_out_float_reset = new float[1];	    
-	    data_out_float_reset[0] = float.MaxValue;
-	    byte[] data_out_reset = new byte[sizeof(float)];
-	    Buffer.BlockCopy(data_out_float_reset, 0, data_out_reset, 0, data_out_reset.Length);		    	    
-	    socket[idx].SendTo(data_out_reset, sizeof(float), SocketFlags.None, Remote);
-	  }
-	  else if(global_reset==0.0f)
-	  {
-	    agent[idx].GetComponent<QAgent>().reset();
-
-	    float[] data_out_float_reset = new float[2];	    
-	    data_out_float_reset[0] = float.MaxValue; data_out_float_reset[1] = float.MaxValue;	    
-	    byte[] data_out_reset = new byte[sizeof(float)*2];
-	    Buffer.BlockCopy(data_out_float_reset, 0, data_out_reset, 0, data_out_reset.Length);		    	    
-	    socket[idx].SendTo(data_out_reset, sizeof(float)*2, SocketFlags.None, Remote);
-
-	    for (int reset_idx=0; reset_idx<numOfWalkers; reset_idx++)
-	      reset_counter[reset_idx] = trial_duration;
-
-	    display_string += "GLOBAL RESETED";
-	  }
-	  else
-	  {
-	    display_string += "AGENT " + idx.ToString();
-	    reset_counter[idx]-=1;//Time.fixedDeltaTime;
-	    agent[idx].GetComponent<QAgent>().set_udp(action);
-	  }
-      
-	  // sending state,reward
-	  List<float> state_reward;
-	  state_reward = agent[idx].GetComponent<QAgent>().get_udp();
-	  
-	  float[] data_out_int = new float[(state_reward.Count+1)];
-	  byte[] data_out = new byte[sizeof(float)*(state_reward.Count+1)];
-	  
-	  data_out_int[0] = state_reward.Count;
-	  for(int idx2=0; idx2<state_reward.Count;idx2++)
-	    data_out_int[idx2+1] = state_reward[idx2];
-
-	  if(global_reset!=0.0f && reset_counter[idx]!= 0.0f)
-	    if(state_reward[state_reward.Count-3]>0.0f)
-	    {
-	      reset_counter[idx]=0.0f;
-	    }	  	    	  
-	  
-	  Buffer.BlockCopy(data_out_int, 0, data_out, 0, data_out.Length);	
-	  socket[idx].SendTo(data_out, sizeof(float)*data_out_int.Length, SocketFlags.None,Remote);
-
-	  // display
-	  display_string += "COUNTER "+reset_counter[idx].ToString()+","+global_reset.ToString();
-	  display_string += " (A:"+action.ToString();
-	  display_string += ")-->(S':";
-	  for(int obstacle_index=0; obstacle_index<state_reward.Count;obstacle_index++)
-	    display_string += " "+state_reward[obstacle_index].ToString();
-	  display_string += "&"+state_reward[state_reward.Count-3].ToString();
-	  display_string += ","+state_reward[state_reward.Count-2].ToString();
-	  display_string += ")";	  
-	  display_string += "\n";
+	    if(socket[idx].Available<=0)
+	    {	
+		agent[idx].GetComponent<QAgent>().set_udp(-1);
+		return;
+	    }
 	}
-      }
-      catch (Exception err)
-      {
-	Debug.Log(err.ToString()+" FixedUpdate unknown error: not receiving brain signal..");
-      }
-      display_string += "\nTrial:"+trial_elapsed.ToString();
+	
+	float global_reset=0.0f;
+	for (int reset_idx=0; reset_idx<numOfWalkers; reset_idx++)
+	    global_reset += reset_counter[reset_idx];
+	  
+	// execute brain update
+	try
+	{
+	    display_string = "";
+	    
+	    // receive all action
+	    for(int idx=0; idx<numOfWalkers; idx++)
+	    {
+		// finding any client
+		sender = new IPEndPoint(IPAddress.Any, PORT+idx);
+		Remote = (EndPoint)(sender);
+		
+		// receive action
+		byte[] data_in = new byte[256];;
+	  
+		socket[idx].ReceiveFrom(data_in,sizeof(int),0,ref Remote);	
+		int action = System.BitConverter.ToInt32(data_in, 0);
+		
+		// if local reset
+		if(reset_counter[idx]<=0.0f && global_reset!=0.0f)
+		{
+		    agent[idx].GetComponent<QAgent>().set_udp(-1);		    
+		    float[] data_out_float_reset = new float[1];	    
+		    data_out_float_reset[0] = float.MaxValue;
+		    byte[] data_out_reset = new byte[sizeof(float)];
+		    Buffer.BlockCopy(data_out_float_reset, 0, data_out_reset, 0, data_out_reset.Length);		    	    
+		    socket[idx].SendTo(data_out_reset, sizeof(float), SocketFlags.None, Remote);
+		}
+		else if(global_reset==0.0f)
+		{
+		    agent[idx].GetComponent<QAgent>().reset();
+		    float[] data_out_float_reset = new float[2];	    
+		    data_out_float_reset[0] = float.MaxValue; data_out_float_reset[1] = float.MaxValue;	    
+		    byte[] data_out_reset = new byte[sizeof(float)*2];
+		    Buffer.BlockCopy(data_out_float_reset, 0, data_out_reset, 0, data_out_reset.Length);		    	    
+		    socket[idx].SendTo(data_out_reset, sizeof(float)*2, SocketFlags.None, Remote);
+		    
+		    for (int reset_idx=0; reset_idx<numOfWalkers; reset_idx++)
+			reset_counter[reset_idx] = trial_duration;
+		}
+		else
+		{
+		    reset_counter[idx]-=1;//Time.fixedDeltaTime;
+		    agent[idx].GetComponent<QAgent>().set_udp(action);
+		}
+		
+		// sending state,reward
+		List<float> state_reward;
+		state_reward = agent[idx].GetComponent<QAgent>().get_udp();
+		
+		float[] data_out_int = new float[(state_reward.Count+1)];
+		byte[] data_out = new byte[sizeof(float)*(state_reward.Count+1)];
+		
+		data_out_int[0] = state_reward.Count;
+		for(int idx2=0; idx2<state_reward.Count;idx2++)
+		    data_out_int[idx2+1] = state_reward[idx2];
+		
+		/*if(global_reset!=0.0f && reset_counter[idx]!= 0.0f)
+		  if(state_reward[state_reward.Count-3]>0.0f)
+		  {
+		  reset_counter[idx]=0.0f;
+		  }
+		*/	  	    	  
+		
+		if(global_reset!=0.0f && reset_counter[idx]!= 0.0f)	    
+		    if(agent[idx].GetComponent<QAgent>().reached_goal()!=0.0f)
+			reset_counter[idx]=0.0f;
+		
+		Buffer.BlockCopy(data_out_int, 0, data_out, 0, data_out.Length);	
+		socket[idx].SendTo(data_out, sizeof(float)*data_out_int.Length, SocketFlags.None,Remote);		
+	    }
+	}
+	catch (Exception err)
+	{
+	    Debug.Log(err.ToString()+" FixedUpdate unknown error: not receiving brain signal..");
+	}
     }
 
     void createZombieAgent(int index)
@@ -322,17 +311,21 @@ public class PopulateScene : MonoBehaviour
 	    if(index%2==0)
 	    {
 		clone.GetComponent<Renderer>().material.color = new Color(0.0f, 0.5f, 1.0f);
-		goal.GetComponent<Renderer>().material.color = new Color(0.0f, 0.5f, 1.0f);	
-		location = new Vector3((index-numOfWalkers/2)*3.0f,0,square_dist);
-		goal.transform.position = new Vector3((index-numOfWalkers/2)*3.0f, 0.5F, -15);
+		goal.GetComponent<Renderer>().material.color = new Color(0.0f, 0.5f, 1.0f);
+		
+		location = new Vector3((index-numOfWalkers/2)*3.0f,0,10);
+		goal.transform.position = new Vector3((index-numOfWalkers/2-1.0f)*3.0f, 0.5F, -15);
+		
 		goal.transform.localScale = new Vector3(2.0f,2.0f,2.0f);
 	    }
 	    else
 	    {
 		clone.GetComponent<Renderer>().material.color = new Color(1.0f, 0.5f, 0.0f);
-		goal.GetComponent<Renderer>().material.color = new Color(1.0f, 0.5f, 0.0f);	
-		location = new Vector3((index-numOfWalkers/2-0.5f)*3.0f,0,-square_dist);
-		goal.transform.position = new Vector3((index-numOfWalkers/2-0.5f)*3.0f, 0.5F, 10);
+		goal.GetComponent<Renderer>().material.color = new Color(1.0f, 0.5f, 0.0f);
+		
+		location = new Vector3((index-numOfWalkers/2-1.0f)*3.0f,0,-15);
+		goal.transform.position = new Vector3((index-numOfWalkers/2)*3.0f, 0.5F, 10);
+		
 		goal.transform.localScale = new Vector3(2.0f,2.0f,2.0f);
 	    }
 
@@ -341,7 +334,10 @@ public class PopulateScene : MonoBehaviour
 
 	clone.GetComponent<QAgent>().setResetPose(location,pose);
 
-	
+	// draw PlaceCells state
+	if(VizPlaceCell && index==0)
+	    clone.GetComponent<QAgent>().vizPlaceCell = true;
+
 	// draw sector state
         if (!VizCollisionCells)
             clone.GetComponent<DrawSector>().enabled = false;
@@ -352,6 +348,9 @@ public class PopulateScene : MonoBehaviour
         else
             clone.GetComponent<QAgent>().turn_triangle_indicator(true);	
 	
+	// draw 
+	clone.GetComponent<QAgent>().vizTrail = true;
+
 	// set time-scale
         if (Learning)
             clone.GetComponent<QAgent>().setTimeScale(LearningTimeScale);
@@ -361,6 +360,7 @@ public class PopulateScene : MonoBehaviour
 	// set timing details
 	clone.GetComponent<QAgent>().setTimePerUpdate(time_per_update);
 	clone.GetComponent<QAgent>().reset();
+	clone.GetComponent<QAgent>().RandomReset = RandomReset;
 
 	// animation
         if (AnimationOff) Destroy(clone.GetComponent<Animator>());

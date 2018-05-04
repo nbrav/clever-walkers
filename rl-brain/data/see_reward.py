@@ -30,9 +30,9 @@ for goal_tag in tag:
     for _set in range(0,len(REWARD_PATH)):        
         for idx in range(0,NUM_AGENTS):            
             if goal_tag=="goal":
-                reward = np.fromfile(REWARD_PATH[_set]+goal_tag+"."+str(idx)+".log",np.float32)[0:]
+                reward = np.fromfile(REWARD_PATH[_set]+goal_tag+"."+str(idx)+".log",np.float32)[:]
             else:
-                reward = -np.fromfile(REWARD_PATH[_set]+goal_tag+"."+str(idx)+".log",np.float32)[0:]
+                reward = -np.fromfile(REWARD_PATH[_set]+goal_tag+"."+str(idx)+".log",np.float32)[:]
             
             T = np.array(range(0,reward.shape[0]-1))
             BIN_NUM = int(math.floor(reward.shape[0]/BIN_SIZE[_set]));
@@ -46,28 +46,32 @@ for goal_tag in tag:
 
             plt.plot(R_smooth,idx_colour[idx],linewidth=2.5,alpha=0.5)
             
-            if REWARD_PATH[_set]==TRAIN_PATH:
-                plt.title('Raw Reward frequency: '+goal_tag)
-            elif REWARD_PATH[_set]==TEST_PATH:
-                plt.title('Learning curve (evaluation): '+goal_tag)
+            #if REWARD_PATH[_set]==TRAIN_PATH:
+            #    plt.title('Raw Reward frequency: '+goal_tag)
+            #elif REWARD_PATH[_set]==TEST_PATH:
+            #    plt.title('Learning curve (evaluation): '+goal_tag)
 
-            plt.xlabel('time (# of trials)')
-
+            #\n(running average: '+str(BIN_SIZE[_set])+'
+            
             if goal_tag=="goal":
-                plt.ylabel('reward frequency \n(running average: '+str(BIN_SIZE[_set])+')')
-                #plt.ylim(-0.1,1.1)
+                plt.ylabel(r'$<$reward$>$', fontsize=20)
+                plt.ylim(-1,30)
             else:
-                plt.ylabel('collision frequency \n(running average: '+str(BIN_SIZE[_set])+')')
-                #plt.ylim(-0.1,4.1)
-                
+                plt.ylabel('$<$collision$>$', fontsize=20)
+                plt.ylim(-1.0,7.1)
+            plt.xlim(-10,750)
             
         if goal_tag=="goal":
-            plt.plot(np.ones(R_smooth.shape[0]),'k--',linewidth=1.5,alpha=1)
+            #plt.plot(np.ones(R_smooth.shape[0]),'k--',linewidth=1.5,alpha=1)
+            plt.text(reward.shape[0]*3/4, 20, r'goal module',
+                    verticalalignment='top', horizontalalignment='right', fontsize=20)
         else:                
+            plt.text(reward.shape[0]*3/4, 3, r'collision module',
+                    verticalalignment='top', horizontalalignment='right', fontsize=20)
+            
+            plt.xlabel('time (# of trials)',fontsize=20)
             plt.plot(np.zeros(R_smooth.shape[0]),'k--',linewidth=1.5,alpha=1)
             
-        plt.legend(idx_legend)
-        
 print("Number of updates: ",reward.shape[0])        
 
 plt.show()

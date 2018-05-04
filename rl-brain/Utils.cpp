@@ -23,6 +23,29 @@ int get_softmax_action(double* pi, int pi_size)
   }    
 }
 
+/* a = argmax_a pi(a) */
+int get_greedy_action(double* pi, int pi_size)  
+{
+  int action_greedy = (int)rand()%pi_size;
+
+  for(int action_idx=0; action_idx<pi_size; action_idx++)
+    if(pi[action_idx] > pi[action_greedy])
+      action_greedy = action_idx;
+  return action_greedy;
+}
+
+void gain_policy(double* pi, int pi_size, float gain)
+{
+  double pi_sum = 0.0;
+  for(int action_idx=0; action_idx<pi_size; action_idx++)
+  {
+    pi[action_idx] = pow(pi[action_idx],gain);
+    pi_sum += pi[action_idx];    
+  }
+  for(int action_idx=0; action_idx<pi_size; action_idx++)
+    pi[action_idx] /= pi_sum;      
+}
+
 /* return closest action (in action-space) for heading angle */
 int bearing_to_action(int theta, int numDirection)
 {

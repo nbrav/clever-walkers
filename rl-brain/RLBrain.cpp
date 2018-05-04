@@ -39,11 +39,11 @@ class qbrain
   int _num_phi, _num_phi_prime; // compressed phi size
 
   // reward
-  float _reward, _rpe;    
+  float _reward; double delta;    
 
   // action
   int _action, _action_prime, _action_size;
-
+  
   // actor traces/weights
   std::vector< std::vector<float> > _actor_e;
   std::vector< std::vector<float> > _actor_w;
@@ -51,6 +51,10 @@ class qbrain
   // critic traces/weights
   std::vector<float> _critic_e;
   std::vector<float> _critic_w;
+
+  // convergence checker
+  std::vector< std::vector<float> > _retro_actor_w;
+  std::vector<float> _retro_critic_w;  
 
   // i/o files
   FILE *qvalue_outfile, *qvalue_infile;   //TODO: do we need two files for reading and writing?
@@ -143,7 +147,9 @@ class qbrain
     }
     
     _reward = 0.0;
-    _rpe = 0.0;
+
+    _retro_actor_w = _actor_w;
+    _retro_critic_w = _critic_w;
 
     qvalue_outfile = fopen(("./data/qvalue."+_tag+"."+std::to_string(_rank)+".log").c_str(), "ab");
     fclose(qvalue_outfile);
@@ -156,14 +162,14 @@ class qbrain
   {
     _action_size = 8*3;  // Must use a param file     
     
-    _alpha = 0.01; // learning rate
-    _rho = 1.0;  // importance-sampling 
-    _lambda = 0.8; // eligibility parameter 0.8
+    _alpha   = 0.01; // learning rate
+    _rho     = 1.0; // importance-sampling 
+    _lambda  = 0.6; // eligibility parameter 0.8
 
     _epsilon = 0.8; // epsilon-greedy
-    _omega = 0.1; // softmax-temp
+    _omega   = 0.1; // softmax-temp
     
-    _gamma = 0.9; // temporal-decay rate
+    _gamma   = 0.95; // temporal-decay rate
   }
 
   void reset()
@@ -176,6 +182,8 @@ class qbrain
     _action = rand()%_action_size;
 
     _reward = 0.0;
+
+    _rho = 1.0;
 
     // reset actor_e
     for (int state_idx=0; state_idx<_state_size; state_idx++)
@@ -232,6 +240,17 @@ class qbrain
     fclose(critic_outfile);
   }
 
+  void check_convergence()
+  {
+    double mean_actor_update = 0.0, mean_critic_update = 0.0;    
+    for(int state_idx=0; state_idx<_state_size; state_idx++)
+    {
+      mean_critic_update += abs(_critic_w[state_idx]-_retro_critic_w[state_idx]);
+      for(int action_idx=0; action_idx<_action_size; action_idx++)
+	mean_actor_update += abs(_actor_w[state_idx][action_idx]-_retro_actor_w[state_idx][action_idx]);
+    }
+  }
+
   /* ---------- I/O ----------------*/
 
   void set_state(int num_phi, int* phi_idx, float* phi_val)
@@ -256,8 +275,6 @@ class qbrain
 
       if(_phi_idx[idx]!=_phi_idx[idx]) cerr<<"\n===NANs in PHI_IDX!==="<<_tag;    
       if(_phi_val[idx]!=_phi_val[idx]) cerr<<"\n===NANs in PHI_VAL!==="<<_tag;
-
-      //cout<<"\n"<<idx<<":"<<phi_idx[idx]<<","<<phi_val[phi_idx[idx]];
     }
   }
 
@@ -343,24 +360,37 @@ class qbrain
   float get_rpe()
   {
     return _reward
-      + _gamma * get_value(_num_phi_prime, _phi_prime_idx, _phi_prime_val)
+      + get_value(_num_phi_prime, _phi_prime_idx, _phi_prime_val)*_gamma
       - get_value(_num_phi, _phi_idx, _phi_val);
   }
   
   /*------------- Update rules ----------*/
 
-  void update_importance_samples(double* policy_our, double* policy_behaviour, int action_behaviour)
+  void update_importance_samples(double* policy_our, double* policy_behaviour, int a_t)
   {
-    _rho = policy_our[action_behaviour]/policy_behaviour[action_behaviour];
-    _rho = min(_rho,1.0);    
+    float _rho_t = 0;
+    
+    if(a_t<0 || a_t>=_action_size)
+      cerr<<"Invalided action for importance sampling!";
+    
+    if(!policy_behaviour[a_t]==0.0)
+      _rho_t = policy_our[a_t]/policy_behaviour[a_t];
+    
+    _rho = _rho_t<1?_rho_t:1.0;
+    //if(!_rank) cout<<"\nIS"<<_tag<<"="<<_rho;
+  }
+
+  double grad_entropy(double* policy)
+  {
+    double grad_H = 0.0;
+    for(int idx=0; idx<_num_phi && _phi_idx[idx]<_state_size; idx++)
+      for(int action_idx=0; action_idx<_action_size; action_idx++)
+	grad_H += _phi_val[idx]*(1.0/_action_size-policy[action_idx]);
+    return grad_H;
   }
   
-  void update_actor()
+  void update_actor(double delta)
   {
-    // releasing dopamine
-    // delta_t = r_{t+1} + gamma*q(phi(s_{t+1}),a_{t+1}) - q(phi(s_t),a_t);    
-    double delta = get_rpe();
-    
     double* policy = get_policy(_num_phi,_phi_idx,_phi_val);
 
     // e-trace decay
@@ -371,29 +401,26 @@ class qbrain
     // efference-update of e-trace
     for(int idx=0; idx<_num_phi && _phi_idx[idx]<_state_size; idx++)
       for(int action_idx=0; action_idx<_action_size; action_idx++)
-	_actor_e[_phi_idx[idx]][action_idx] += _phi_val[idx] * ((action_idx==_action)-policy[action_idx]);      
+	_actor_e[_phi_idx[idx]][action_idx] += _gamma * _phi_val[idx] * ((action_idx==_action)-policy[action_idx]);      
 
     // weight consolitation
     for(int state_idx=0; state_idx<_state_size; state_idx++)
       for(int action_idx=0; action_idx<_action_size; action_idx++)
-	_actor_w[state_idx][action_idx] += _alpha * _rho * delta * _actor_e[state_idx][action_idx];
+	_actor_w[state_idx][action_idx] += _alpha * (delta*_actor_e[state_idx][action_idx]*_rho); //+ grad_entropy(policy)
 
     delete[] policy;   
   }
 
-  void update_critic()
+  void update_critic(double delta)
   {
-    // delta = r + \gamma * v(s') - v(s)
-    double delta = get_rpe();
-
     for(int state_idx=0; state_idx<_state_size; state_idx++)
       _critic_e[state_idx] = _lambda*_critic_e[state_idx];
 
     for(int idx=0; idx<_num_phi && _phi_idx[idx]<_state_size; idx++)
-      _critic_e[_phi_idx[idx]] += _phi_val[idx];
+      _critic_e[_phi_idx[idx]] += _gamma * _phi_val[idx];
     
     for (int state_idx=0; state_idx<_state_size; state_idx++)
-      _critic_w[state_idx] += _alpha * _rho * delta * _critic_e[state_idx];
+      _critic_w[state_idx] += _alpha * delta * _critic_e[state_idx] * _rho;
   }
 
   float get_value(int num_phi, int* phi_idx, float* phi_val)
@@ -424,12 +451,14 @@ class qbrain
     {
       actor_log();
       critic_log();
+      if(!_rank) check_convergence();
     }
     
     if(_num_phi<0)
       return;
     
-    update_actor();
-    update_critic();
+    delta = get_rpe();
+    update_actor(delta);
+    update_critic(delta);
   }  
 };

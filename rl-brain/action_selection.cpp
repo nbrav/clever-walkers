@@ -13,6 +13,40 @@
 
 using namespace std;
 
+void check_nan(double* pi, int pi_size)
+{
+  for(int idx=0; idx<pi_size; idx++)
+    if(pi[idx]!=pi[idx])
+      cerr<<"\nNAN ALERT!!";
+}
+
+void print_policy(double* pi, int pi_size, string name)
+{
+  cout<<"\n"<<name<<"[";
+  for(int idx=0; idx<pi_size; idx++)
+    cout<<round(pi[idx]*100)/100<<","<<setw(4);
+  cout<<"]";
+}
+
+// compute IS()
+void IS(double* pi, double* b, int pi_size, int action)
+{
+  if(action<0 || action>=pi_size)
+    cerr<<"Invalided action for importance sampling!";
+  if(!b[action]==0.0)
+    cout<<" IS="<<pi[action]/b[action];  
+}
+
+// compute KL(pi1||pi2)
+void KL(double* pi1, double* pi2, int pi_size)
+{
+  double div = 0.0;
+  for(int idx=0; idx<pi_size; idx++)
+    if(!pi1[idx]==0.0)
+      div += pi1[idx]*(log(pi1[idx])-log(pi2[idx]));
+  cout<<" KL="<<div;
+}
+
 void action_selection (double* policy_behaviour, double* policy_goal, int action_previous, double* policy_collide, float heading_direction, bool DEBUG)
 {
   int numDirection = 8, numSpeed = 3; int action_size = numDirection*numSpeed;
@@ -25,9 +59,9 @@ void action_selection (double* policy_behaviour, double* policy_goal, int action
     policy_behaviour[action_idx] = 0.0;
   }
   
-  // initialize previous action policy
-  double _tau_previous = 2.0;
   double policy_sum = 0; 
+  // initialize previous action policy
+  /*double _tau_previous = 2.0;
   for(int action_idx=0; action_idx<action_size; action_idx++)
   {
     policy_prev[action_idx] = exp((action_previous==action_idx)/_tau_previous);
@@ -35,30 +69,29 @@ void action_selection (double* policy_behaviour, double* policy_goal, int action
   }
   for(int action_idx=0; action_idx<action_size; action_idx++)
     policy_prev[action_idx] /= policy_sum;
+  */
   
   // behaviour <- pi_prev * goal * collide
-  double _tau_behaviour = 0.1;
   for(int action_idx=0; action_idx<action_size; action_idx++)
   {
-    policy_behaviour[action_idx] = pow(policy_prev[action_idx],1);
-    policy_behaviour[action_idx] *= pow(policy_goal[action_idx],1); 
-    policy_behaviour[action_idx] *= 1;//pow(policy_collide[action_idx],1);
+    policy_behaviour[action_idx] = 1;//pow(policy_prev[action_idx];
+    policy_behaviour[action_idx] *= policy_goal[action_idx]; 
+    policy_behaviour[action_idx] *= policy_collide[action_idx];
 
-    policy_behaviour[action_idx] = pow(policy_behaviour[action_idx],1.0/_tau_behaviour);
-  }  
-  
+    policy_behaviour[action_idx] = policy_behaviour[action_idx];
+  }
+
   // compute and normalize pi_final
   policy_sum = 0.0;
   for(int action_idx=0; action_idx<action_size; action_idx++)
     policy_sum += policy_behaviour[action_idx];  
-  if(DEBUG) cout<<"\n\n";
   for(int action_idx=0; action_idx<action_size; action_idx++)
-  {
     policy_behaviour[action_idx] /= policy_sum;
-    if(DEBUG) cout<<"["<<round(policy_prev[action_idx]*100)/100<<"x"<<round(policy_goal[action_idx]*100)/100<<"="<<round(policy_behaviour[action_idx]*100)/100<<"]";
-  }
-  // <<"x"<<round(policy_collide[action_idx]*100)/100
-    
+      
+  check_nan(policy_behaviour,action_size);
+  check_nan(policy_goal,action_size);
+  check_nan(policy_collide,action_size);
+
   delete[] policy_goal;
   delete[] policy_collide;
   delete[] policy_prev;

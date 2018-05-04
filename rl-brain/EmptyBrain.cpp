@@ -1,5 +1,5 @@
 #define _VERBOSE_UDP false
-#define _VERBOSE_AS false
+#define _VERBOSE_AS true
 
 #define LEARNING true
 #define SOFTMAX true
@@ -9,7 +9,7 @@
 #define CLOCK_PRECISION 1E9
 #define HALTING_ACTION 12
 
-#define UNITY_IP "0.0.0.0" // enter your PC IP here
+#define UNITY_IP "0.0.0.0"  // enter your PC IP here
 #define THIS_IP "127.0.0.1" // use if running Brain & Unity in same system
 
 #include <iostream>
@@ -185,24 +185,21 @@ int main(int argc, char **argv)
 	  // debug printing
 	  if(_VERBOSE_UDP && _master) 
 	  {
-	    //printf("\n\n\nRAW_UDP [AgIdx:%d T:%d] ",_rank,timestep); printf("[Out:%d] ->",action);
-	    //printf(" [In:");
-	    //for(int idx=0;idx<recvlen/sizeof(float);idx++) printf("%0.1f,",sr_local[idx]);
-	    //printf(" ]");	    
+	    printf("\n\n\nRAW_UDP [AgIdx:%d T:%d] ",_rank,timestep); printf("[Out:%d] ->",action);
+	    printf(" [In:"); for(int idx=0;idx<recvlen/sizeof(float);idx++) printf("%0.1f,",sr_local[idx]); printf(" ]");	    
 	  }
-	  //fflush(stdout);
+	  fflush(stdout);
 
 	  // -------------------------------------------------------------
 	  // ----------------extract from observations--------------------
-	  // {K+4,
-	  //  #phi_goal, phi_goal_idx0, phi_goal_val0, phi_goal_idx1, phi_goal_val1,..,
-	  //  phi_collide_0,..,phi_collide_{K-1},
-	  //  reward_goal,reward_collide,heading_dir}
+	  // {K+4, #phi_goal, phi_goal_idx0, phi_goal_val0, phi_goal_idx1, phi_goal_val1,.., phi_collide_0,..,phi_collide_{K-1},reward_goal,reward_collide,heading_dir}
 	  int sr_local_idx = 1;
+
+	  if(_VERBOSE_UDP && _master) cout<<"\n";
 	  
 	  // Extract allocentric state
 	  num_phi_goal = int(sr_local[sr_local_idx++]);	  
-	  if(_VERBOSE_UDP && _master) cout<<"\n#S="<<num_phi_goal<<" (";
+	  if(_VERBOSE_UDP && _master) cout<<"#S="<<num_phi_goal<<" (";
 	  for(int phi_idx=0; phi_idx<num_phi_goal; phi_idx++)
 	  {
 	    phi_goal_idx[phi_idx] = int(sr_local[sr_local_idx++]);
@@ -213,14 +210,14 @@ int main(int argc, char **argv)
 	  	  
 	  //Extract egocentric state vector
 	  num_phi_collide = sr_local[sr_local_idx++]; 
-	  //if(_VERBOSE_UDP && _master) cout<<"\n#X="<<num_phi_collide<<" (";
+	  if(_VERBOSE_UDP && _master) cout<<"\n#X="<<num_phi_collide<<" (";
 	  for(int phi_idx=0; phi_idx<num_phi_collide; phi_idx++)
 	  {
 	    phi_collide_idx[phi_idx] = int(sr_local[sr_local_idx++]);
 	    phi_collide_val[phi_idx] = 1;
-	    //if(_VERBOSE_UDP && _master) cout<<phi_collide_idx[phi_idx]<<",";
+	    if(_VERBOSE_UDP && _master) cout<<phi_collide_idx[phi_idx]<<",";
 	  }
-	  //if(_VERBOSE_UDP && _master) cout<<")";
+	  if(_VERBOSE_UDP && _master) cout<<")";
 
 	  // extract rewards and heading direction
 	  reward_goal = float(sr_local[int(sr_local_idx++)]);
@@ -244,21 +241,31 @@ int main(int argc, char **argv)
 	  // b = \prod_i pi_i
 	  action_selection(policy_behaviour, policy_goal, action_previous, policy_collide, heading_direction, _master*_VERBOSE_AS);
 
+	  gain_policy(policy_behaviour,24,5.0);
 	  action = get_softmax_action(policy_behaviour,8*3);
 	  action_collide = egocentricate(action,8,3,heading_direction);
 
 	  action_previous = action;
 
+	  if(_master*_VERBOSE_AS*(timestep%1000>0 && timestep%1000<10))
+	  {
+	    cout<<"\n";
+	    print_policy(policy_goal,24,"goal"); KL(policy_goal,policy_behaviour,24);
+	    print_policy(policy_collide,24,"coll"); KL(policy_collide,policy_behaviour,24);
+	    print_policy(policy_behaviour,24,"beha"); 
+	  }
+	  
 	  // w += alpha*(r'+gamma*q(s',a')-q(s,a))
 	  if(LEARNING)
 	  {
 	    //brain_goal.update_importance_samples(policy_goal, policy_behaviour, action);
 	    //brain_collide.update_importance_samples(policy_collide, policy_behaviour, action);
-	    
+	    fflush(stdout);
+		  
 	    brain_goal.advance_timestep(num_phi_goal,phi_goal_idx,phi_goal_val,action,reward_goal,timestep);
 	    brain_collide.advance_timestep(num_phi_collide,phi_collide_idx,phi_collide_val,action_collide,reward_collide,timestep);
 	  }
-	  
+
 	  // s = s' 
 	  brain_goal.set_state(num_phi_goal,phi_goal_idx,phi_goal_val);
 	  brain_collide.set_state(num_phi_collide, phi_collide_idx, phi_collide_val);
@@ -272,7 +279,6 @@ int main(int argc, char **argv)
 	  // a = a'
 	  brain_goal.set_action(action);
 	  brain_collide.set_action(action_collide);
-
 	  
 	  timestep++;
 

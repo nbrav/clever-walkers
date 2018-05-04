@@ -11,10 +11,9 @@ using System;
 
 public class QAgent : MonoBehaviour
 {
-    bool turnOnTriangleIndicator;
-
     public Rigidbody rb;				  
     private static double DEG_TO_RAD = System.Math.PI / 180.0f;
+    public bool RandomReset = false;
 
     // reinforcement learning variables 
     int _action=0;
@@ -29,8 +28,9 @@ public class QAgent : MonoBehaviour
     float [,] placecell;
     int NUM_PC=225;
     float M=15.0f,N=15.0f;
-    float PC_SIZE = 2.5f;
-    float sigma = 1.0f;
+    float PC_SIZE = 2.5f; //size of place-cell
+    float pc_sigma = 2.0f; //variance of place-cell Gaussian
+    float potential_previous = -1.0f;
 
     // action-space parameters
     float[] speed = new float[]{0.0f, 0.5f, 1.0f};
@@ -42,10 +42,14 @@ public class QAgent : MonoBehaviour
     private string[] ray_colour_code = new string[] { "ANNULUS_COLOUR", "SECTOR_COLOUR" };
 
     // draw circle for place-cells
+    public bool vizPlaceCell = false;
     public DrawCircle _circlePrefab;
     List<DrawCircle> circleToDraw = new List<DrawCircle>();
-    float pc_radius = 1.0f;
-    
+
+    // draw reward indication
+    bool turnOnTriangleIndicator;
+    bool vizTrail = false;
+
     // whatever this is for..
     [SerializeField]
     GameObject dummyNavMeshAgent;
@@ -105,9 +109,9 @@ public class QAgent : MonoBehaviour
                     
       /* allcentric place-cell set-up */
 
-      int pc_idx=0;
       placecell = new float[NUM_PC,3];
 
+      int pc_idx=0;
       for(float x=0.0f; x<M; x++)
       {
 	for(float y=0.0f; y<N; y++)
@@ -122,8 +126,12 @@ public class QAgent : MonoBehaviour
 	  placecell[pc_idx,1] = (y - N/2.0f - 0.5f)*PC_SIZE; // + UnityEngine.Random.Range(-2,2);
 	  placecell[pc_idx,2] = 0.0f;
 
-	  //circleToDraw.Add(Instantiate(_circlePrefab));
-	  //circleToDraw[pc_idx].SetupCircle(new Vector3(placecell[pc_idx,0],0.0f,placecell[pc_idx,1]), pc_radius, new Color(placecell[pc_idx,2],1-placecell[pc_idx,2], 0.0f));
+	  if(vizPlaceCell)
+	  {
+	      circleToDraw.Add(Instantiate(_circlePrefab));
+	      circleToDraw[pc_idx].SetupCircle
+		  (new Vector3(placecell[pc_idx,0],0.0f,placecell[pc_idx,1]), pc_sigma, new Color(placecell[pc_idx,2],1-placecell[pc_idx,2], 0.0f));
+	  }
 	    
 	  pc_idx++;	  
 	}
@@ -192,9 +200,11 @@ public class QAgent : MonoBehaviour
 	gameObject.GetComponent<Rigidbody>().position += gameObject.transform.forward * (action_speed);
 	gameObject.GetComponent<Rigidbody>().velocity = Vector3.zero;
 
-	// visualize action vectors
 	Vector3 ray_vector = next_position;
-	DrawLine(ray_origin, ray_vector, Color.red);
+	// visualize action vectors
+	if(vizTrail)
+	    Debug.Log("HELLO!");
+	 //   DrawLine(ray_origin, ray_vector, Color.red);
     }
 
     /*---------------------------------------------------------------
@@ -295,10 +305,10 @@ public class QAgent : MonoBehaviour
       {
 	float dis1 = transform.position.x - placecell[pc_idx,0];
 	float dis2 = transform.position.z - placecell[pc_idx,1];
-	placecell[pc_idx,2] = Mathf.Round(Mathf.Exp(-(dis1*dis1+dis2*dis2)/2/sigma/sigma)*100)/100;
+	placecell[pc_idx,2] = Mathf.Round(Mathf.Exp(-(dis1*dis1+dis2*dis2)/2/pc_sigma/pc_sigma)*100)/100;
 
 	//Debug.DrawRay(new Vector3(placecell[pc_idx,0], 0.0f, placecell[pc_idx,1]), Vector3.up, Color.red);
-	//circleToDraw[pc_idx].UpdateMeshColor(new Color(placecell[pc_idx,2],1-placecell[pc_idx,2], 0.0f));
+	if(vizPlaceCell) circleToDraw[pc_idx].UpdateMeshColor(new Color(placecell[pc_idx,2],1-placecell[pc_idx,2], 0.0f));
       }
     }
 
@@ -313,7 +323,7 @@ public class QAgent : MonoBehaviour
 	    {
 		float dist1 = position.x - placecell[pc_idx,0];
 		float dist2 = position.z - placecell[pc_idx,1];
-		float dist = Mathf.Round(Mathf.Exp(-(dist1*dist1+dist2*dist2)/2/sigma/sigma)*100)/100;
+		float dist = Mathf.Round(Mathf.Exp(-(dist1*dist1+dist2*dist2)/2/pc_sigma/pc_sigma)*100)/100;
 		
 		if(dist>closest_dist)
 		{
@@ -392,7 +402,10 @@ public class QAgent : MonoBehaviour
                                  reward system
     ---------------------------------------------------------------*/
 
-    
+    public float reached_goal()
+    {
+	return reward_goal;
+    }
     
     void OnTriggerEnter(Collider col)
     {
@@ -409,7 +422,7 @@ public class QAgent : MonoBehaviour
 	if (turnOnTriangleIndicator)
 	  show_collision.TriggerIndicator(Color.red);
 	
-	reward_collision = -1.0f;
+	reward_collision = 1.0f; //DEBUG //SYMETRIC REWARD
       }
     }
 
@@ -430,14 +443,24 @@ public class QAgent : MonoBehaviour
 
     float shapped_reward_goal()
     {
-	float dist = Mathf.Abs(Vector3.Distance(goalObject.transform.position, transform.position));
-	//Debug.Log(this.gameObject.ToString()+goalObject.ToString()+dist.ToString());
-	return 1.0f-Mathf.Min(dist/100.0f,1.0f);
+	if(potential_previous!=-1.0f)
+	{
+	    float reward_shape = potential_previous - Vector3.Distance(goalObject.transform.position, transform.position);
+	    //Debug.Log(potential_previous+"->"+Vector3.Distance(goalObject.transform.position, transform.position)+"="+Mathf.Max(Mathf.Min(reward_shape,1.0f),-1.0f));  
+	    potential_previous = Vector3.Distance(goalObject.transform.position, transform.position);
+	    return Mathf.Max(Mathf.Min(reward_shape,1.0f),-1.0f);   
+	}
+	else	    
+	{
+	    potential_previous = Vector3.Distance(goalObject.transform.position, transform.position);
+	    //Debug.Log(0.0f);
+	    return 0.0f;
+	}
     }
     
     float get_reward_goal()
     {
-	return reward_goal;
+	return shapped_reward_goal();//+reward_goal;
     }
 
     float get_reward_collision()
@@ -465,16 +488,15 @@ public class QAgent : MonoBehaviour
 
     public void reset()
     {
-	transform.position = defaultLocation;
-	//transform.position = new Vector3(UnityEngine.Random.Range(-15,15),0,UnityEngine.Random.Range(-15,15));	
-	transform.rotation = Quaternion.Euler(0.0f,UnityEngine.Random.Range(0,360),0.0f); //defaultPose;
+	if(RandomReset) transform.position = defaultLocation;
+	else transform.position = new Vector3(UnityEngine.Random.Range(-15,15),0,UnityEngine.Random.Range(-15,15));
+	
+	transform.rotation = Quaternion.Euler(0.0f,UnityEngine.Random.Range(0,360),0.0f);
 	
 	reward_goal = 0.0f; reward_collision = 0.0f;
 
 	if (turnOnTriangleIndicator)
-	{
 	    show_collision.UntriggerIndicator(Color.blue);
-	}
 	
 	position_previous = Vector3.zero;
     }
