@@ -47,13 +47,11 @@ void KL(double* pi1, double* pi2, int pi_size)
   cout<<" KL="<<div;
 }
 
-void action_selection (double* policy_behaviour, double* policy_goal, int action_previous, double* policy_collide, float heading_direction, bool DEBUG)
+void action_selection (double* policy_behaviour, double* policy_goal, double* policy_collide, int action_size, float heading_direction, bool DEBUG)
 {
-  int numDirection = 8, numSpeed = 3; int action_size = numDirection*numSpeed;
-
   // initalize policy (prev,final) 36x5
-  double* policy_prev = new double[numDirection*numSpeed];
-  for(int action_idx=0; action_idx<numDirection*numSpeed; action_idx++)
+  double* policy_prev = new double[action_size];
+  for(int action_idx=0; action_idx<action_size; action_idx++)
   {
     policy_prev[action_idx] = 0.0;
     policy_behaviour[action_idx] = 0.0;

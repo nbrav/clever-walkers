@@ -33,17 +33,23 @@ class qbrain
   // state
   int _state_size;
 
-  int* _phi; // full state
-  int *_phi_idx, *_phi_prime_idx; // compressed phi indices
-  float *_phi_val, *_phi_prime_val; // compressed phi values
-  int _num_phi, _num_phi_prime; // compressed phi size
+  int* _phi_s; // full state
+  int *_phi_s_idx, *_phi_s_prime_idx; // compressed phi_s indices
+  float *_phi_s_val, *_phi_s_prime_val; // compressed phi_s values
+  int _num_phi_s, _num_phi_s_prime; // compressed phi_s size
 
   // reward
   float _reward; double delta;    
 
   // action
-  int _action, _action_prime, _action_size;
-  
+  int _action_size;
+
+  // TODO: deprecate soon
+  //int _action, _action_prime;
+
+  float *_action_code;
+  float *_action, *_action_prime;
+    
   // actor traces/weights
   std::vector< std::vector<float> > _actor_e;
   std::vector< std::vector<float> > _actor_w;
@@ -66,25 +72,36 @@ class qbrain
 
   bool VERBOSE=false;
   
-  qbrain(int rank, string tag, int state_size=100)
+  qbrain(int rank, string tag, int state_size=100, int action_size=8)
   {
     _tag = tag;
     _rank = rank;
     parse_param();
-    _state_size = state_size; // override default state-size
 
-    _phi = new int[_state_size];
-    
-    _num_phi=0; _phi_idx = new int[_state_size]; _phi_val = new float[_state_size];    
-    _num_phi_prime=0; _phi_prime_idx = new int [_state_size]; _phi_prime_val = new float[_state_size];
+    // initialize state-space
+    _state_size = state_size;
+ 
+    _phi_s = new int[_state_size];
+    _num_phi_s=0; _phi_s_idx = new int[_state_size]; _phi_s_val = new float[_state_size];    
+    _num_phi_s_prime=0; _phi_s_prime_idx = new int [_state_size]; _phi_s_prime_val = new float[_state_size];
 
-    // initialize state
     for(int idx=0;idx<_state_size; idx++)
     {
-      _phi[idx]=0;
-      _phi_idx[idx]=0; _phi_val[idx] = 0.0f;
-      _phi_prime_idx[idx]=0; _phi_prime_val[idx]=0.0f;
+      _phi_s[idx]=0;
+      _phi_s_idx[idx]=0; _phi_s_val[idx] = 0.0f;
+      _phi_s_prime_idx[idx]=0; _phi_s_prime_val[idx]=0.0f;
     }
+
+    // initialize action-space
+    _action_size = action_size;
+    _action = new float[_action_size];
+    for (int action_idx=0; action_idx<_action_size; action_idx++)
+      _action[action_idx] = 0.0;
+
+    // population coding in action-space
+    _action_code = new float[_action_size];
+    for (int action_idx=0; action_idx<_action_size; action_idx++)
+      _action_code[action_idx] = 2.0*PI*float(action_idx)/float(_action_size);
 
     // initialize actor
     _actor_e.resize(_state_size);
@@ -96,7 +113,7 @@ class qbrain
 	_actor_e[state_idx][action_idx] = 0.0;
       }
     }
-
+    
     std::ifstream fs(("./data/qvalue."+_tag+"."+std::to_string(_rank)+".log").c_str());
     if(fs.is_open())
     {
@@ -119,7 +136,7 @@ class qbrain
 	_actor_w[state_idx].resize(_action_size,1);
 	for (int action_idx=0; action_idx<_action_size; action_idx++)
 	{
-	  _actor_w[state_idx][action_idx] = 0.0; //(float)rand()/RAND_MAX; //gaussian[action_idx]; //
+	  _actor_w[state_idx][action_idx] = (float)rand()/RAND_MAX;
 	}
       }
     }
@@ -143,7 +160,7 @@ class qbrain
     {
       _critic_w.resize(_state_size);
       for (int state_idx=0; state_idx<_state_size; state_idx++)
-	_critic_w[state_idx] = 0.0;
+	_critic_w[state_idx] = (float)rand()/RAND_MAX;
     }
     
     _reward = 0.0;
@@ -160,26 +177,22 @@ class qbrain
 
   void parse_param()
   {
-    _action_size = 8*3;  // Must use a param file     
-    
-    _alpha   = 0.01; // learning rate
-    _rho     = 1.0; // importance-sampling 
-    _lambda  = 0.6; // eligibility parameter 0.8
+    _alpha   = 0.01;  // learning rate
+    _rho     = 1.00;  // importance-sampling 
+    _lambda  = 0.60;  // eligibility parameter 0.8
 
-    _epsilon = 0.8; // epsilon-greedy
-    _omega   = 0.1; // softmax-temp
+    _epsilon = 0.80;  // epsilon-greedy
+    //_omega   = 0.10;  // softmax-temp
     
-    _gamma   = 0.95; // temporal-decay rate
+    _gamma   = 0.95;  // temporal-decay rate
   }
 
   void reset()
   {
-    _num_phi = -1;
+    _num_phi_s = -1;
     
     for(int idx=0;idx<_state_size; idx++)
-      _phi[idx]=0;
-
-    _action = rand()%_action_size;
+      _phi_s[idx]=0;
 
     _reward = 0.0;
 
@@ -207,16 +220,16 @@ class qbrain
   void state_log()
   {
     state_outfile = fopen(("./data/state."+_tag+"."+std::to_string(_rank)+".log").c_str(), "ab"); //ab
-    fwrite(&_phi[0], sizeof(int)*_state_size, 1, state_outfile);
+    fwrite(&_phi_s[0], sizeof(int)*_state_size, 1, state_outfile);
     fclose(state_outfile);    
   }
 
-  void action_log()
+  /* TODO void action_log()
   {
     action_outfile = fopen(("./data/action."+_tag+"."+std::to_string(_rank)+".log").c_str(), "ab"); //ab
     fwrite(&_action, sizeof(int), 1, action_outfile);
     fclose(action_outfile);    
-  }
+    }*/
 
   void reward_log()
   {
@@ -253,54 +266,55 @@ class qbrain
 
   /* ---------- I/O ----------------*/
 
-  void set_state(int num_phi, int* phi_idx, float* phi_val)
+  void set_state(int num_phi_s, int* phi_s_idx, float* phi_s_val)
   {
-    _num_phi = num_phi;
+    _num_phi_s = num_phi_s;
 
-    float phi_sum=0;
+    float phi_s_sum=0;
     
-    for(int idx=0; idx<num_phi; idx++)
+    for(int idx=0; idx<num_phi_s; idx++)
     {
-      _phi_idx[idx] = phi_idx[idx];
-      _phi_val[idx] = phi_val[idx];
-      phi_sum += _phi_val[idx];
+      _phi_s_idx[idx] = phi_s_idx[idx];
+      _phi_s_val[idx] = phi_s_val[idx];
+      phi_s_sum += _phi_s_val[idx];
     }
     
     for(int idx=0;idx<_state_size; idx++)
-      _phi[idx]=0;
+      _phi_s[idx]=0;
 
-    for(int idx=0; idx<num_phi && phi_idx[idx]<_state_size; idx++)
+    for(int idx=0; idx<num_phi_s && phi_s_idx[idx]<_state_size; idx++)
     {
-      _phi[phi_idx[idx]]=phi_val[idx]/phi_sum;
+      _phi_s[phi_s_idx[idx]]=phi_s_val[idx]/phi_s_sum;
 
-      if(_phi_idx[idx]!=_phi_idx[idx]) cerr<<"\n===NANs in PHI_IDX!==="<<_tag;    
-      if(_phi_val[idx]!=_phi_val[idx]) cerr<<"\n===NANs in PHI_VAL!==="<<_tag;
+      if(_phi_s_idx[idx]!=_phi_s_idx[idx]) cerr<<"\n===NANs in PHI_S_IDX!==="<<_tag;    
+      if(_phi_s_val[idx]!=_phi_s_val[idx]) cerr<<"\n===NANs in PHI_S_VAL!==="<<_tag;
     }
   }
 
-  void set_action(int action)
+  void set_action(float* action)
   {
-    _action = action;
+    for(int action_idx=0; action_idx<_action_size; action_idx++)
+      _action[action_idx] = action[action_idx];
   }
 
-  double* get_policy(int num_phi, int* phi_idx, float* phi_val)
+  double* get_policy(int num_phi_s, int* phi_s_idx, float* phi_s_val)
   {
     float* h = new float[_action_size];  float hmax = std::numeric_limits<float>::min();
     double* policy = new double[_action_size]; double policy_sum = 0.0;
 
-    for(int idx=0; idx<num_phi; idx++)
-      if(_phi_val[idx]!=_phi_val[idx])
-	cerr<<"\n===NANs in PHI===";
+    for(int idx=0; idx<num_phi_s; idx++)
+      if(_phi_s_val[idx]!=_phi_s_val[idx])
+	cerr<<"\n===NANs in PHI_S===";
 
     // h(A)=0
     for(int action_idx=0; action_idx<_action_size; action_idx++)
       h[action_idx] = 0.0;    
 
-    // forall a: h(s_t,A) = sum_i w_i*phi_i(s_t,A)
-    for(int idx=0; idx<num_phi && phi_idx[idx]<_state_size; idx++)
+    // forall a: h(s_t,A) = sum_i w_i*phi_s_i(s_t,A)
+    for(int idx=0; idx<num_phi_s && phi_s_idx[idx]<_state_size; idx++)
       for(int action_idx=0; action_idx<_action_size; action_idx++)
       {
-	h[action_idx] += _actor_w[phi_idx[idx]][action_idx] * _phi_val[idx];
+	h[action_idx] += _actor_w[phi_s_idx[idx]][action_idx] * _phi_s_val[idx];
 	hmax = (h[action_idx]>hmax)?h[action_idx]:hmax;
 
 	if(h[action_idx]!=h[action_idx]) cerr<<"\nNANs in Q_"<<_tag;
@@ -308,7 +322,7 @@ class qbrain
     
     for(int action_idx=0; action_idx<_action_size; action_idx++)
     {
-      policy[action_idx] = exp((h[action_idx]-hmax)); // ACTOR-CRITIC?? /_omega
+      policy[action_idx] = exp((h[action_idx]-hmax));
       policy_sum += policy[action_idx];
 
       if(policy[action_idx]!=policy[action_idx]) cerr<<"\n===NANs in PI_i!==="<<_tag;
@@ -324,47 +338,33 @@ class qbrain
     return policy;
   }
 
-  double* get_locked_policy(int num_phi, int* phi_idx, float* phi_val)
+  void action_to_motor(float* action, float* motor_msg)
   {
-    double* _policy = new double[_action_size]; double _policy_sum = 0.0;
-    double sigma=2.5;
-
-    for(int idx=0; idx<num_phi; idx++)
-      if(_phi_val[idx]!=_phi_val[idx])
-	cerr<<"\n===NANs in PHI===";
-
+    float velocity_x=0.0, velocity_y=0.0;
+    //if(!_rank) cout<<"\n\n";
     for(int action_idx=0; action_idx<_action_size; action_idx++)
     {
-      if(_rank%2)
-	_policy[action_idx] = exp(-(action_idx%8-0)*(action_idx%8-0)*2.0/sigma/sigma);
-      else
-	_policy[action_idx] = exp(-(action_idx%8-4)*(action_idx%8-4)*2.0/sigma/sigma);
-      
-      _policy_sum += _policy[action_idx];
-
-      if(_policy[action_idx]!=_policy[action_idx]) cerr<<"\n===NANs in PI_i!==="<<_tag;
+      velocity_x += cos(_action_code[action_idx])*action[action_idx];
+      velocity_y += sin(_action_code[action_idx])*action[action_idx];
+      //if(!_rank) cout<<"(c="<<_action_code[action_idx]<<" x="<<action[action_idx]<<"; vx="<<velocity_x<<",vy="<<velocity_y<<") ";
     }
 
-    if(_policy_sum==0)
-    {
-      cerr<<"Warning! Zero-sum policy in "<<_tag<<"!";
-      return _policy;
-    }
-    
-    for(int action_idx=0; action_idx<_action_size; action_idx++)
-      _policy[action_idx] /= _policy_sum;
-
-    return _policy;
+    if(velocity_x==0.0)
+      motor_msg[0]=0.0;
+    else	
+      motor_msg[0] = atan2(velocity_y,velocity_x);
+    motor_msg[1] = sqrt(velocity_x*velocity_x+velocity_y*velocity_y);
+    //if(!_rank) cout<<"->theta="<<180.0/PI*motor_msg[0]<<" speed="<<motor_msg[1];
   }
 
   float get_rpe()
   {
     return _reward
-      + get_value(_num_phi_prime, _phi_prime_idx, _phi_prime_val)*_gamma
-      - get_value(_num_phi, _phi_idx, _phi_val);
+      + get_value(_num_phi_s_prime, _phi_s_prime_idx, _phi_s_prime_val)*_gamma
+      - get_value(_num_phi_s, _phi_s_idx, _phi_s_val);
   }
   
-  /*------------- Update rules ----------*/
+  /*-------experimental update rules ----------*/
 
   void update_importance_samples(double* policy_our, double* policy_behaviour, int a_t)
   {
@@ -383,15 +383,17 @@ class qbrain
   double grad_entropy(double* policy)
   {
     double grad_H = 0.0;
-    for(int idx=0; idx<_num_phi && _phi_idx[idx]<_state_size; idx++)
+    for(int idx=0; idx<_num_phi_s && _phi_s_idx[idx]<_state_size; idx++)
       for(int action_idx=0; action_idx<_action_size; action_idx++)
-	grad_H += _phi_val[idx]*(1.0/_action_size-policy[action_idx]);
+	grad_H += _phi_s_val[idx]*(1.0/_action_size-policy[action_idx]);
     return grad_H;
   }
+
+  /*------------- Update rules ----------*/
   
   void update_actor(double delta)
   {
-    double* policy = get_policy(_num_phi,_phi_idx,_phi_val);
+    double* policy = get_policy(_num_phi_s,_phi_s_idx,_phi_s_val);
 
     // e-trace decay
     for(int state_idx=0; state_idx<_state_size; state_idx++)
@@ -399,16 +401,16 @@ class qbrain
 	_actor_e[state_idx][action_idx] *= _lambda;
 
     // efference-update of e-trace
-    for(int idx=0; idx<_num_phi && _phi_idx[idx]<_state_size; idx++)
+    for(int idx=0; idx<_num_phi_s && _phi_s_idx[idx]<_state_size; idx++)
       for(int action_idx=0; action_idx<_action_size; action_idx++)
-	_actor_e[_phi_idx[idx]][action_idx] += _gamma * _phi_val[idx] * ((action_idx==_action)-policy[action_idx]);      
+	_actor_e[_phi_s_idx[idx]][action_idx] += _gamma*_phi_s_val[idx]*(_action[action_idx]-policy[action_idx]);    
 
-    // weight consolitation
+    // weight consolidation
     for(int state_idx=0; state_idx<_state_size; state_idx++)
       for(int action_idx=0; action_idx<_action_size; action_idx++)
-	_actor_w[state_idx][action_idx] += _alpha * (delta*_actor_e[state_idx][action_idx]*_rho); //+ grad_entropy(policy)
+	_actor_w[state_idx][action_idx] += _alpha*delta*_actor_e[state_idx][action_idx]*_rho; //+ grad_entropy(policy)
 
-    delete[] policy;   
+    delete[] policy;
   }
 
   void update_critic(double delta)
@@ -416,34 +418,35 @@ class qbrain
     for(int state_idx=0; state_idx<_state_size; state_idx++)
       _critic_e[state_idx] = _lambda*_critic_e[state_idx];
 
-    for(int idx=0; idx<_num_phi && _phi_idx[idx]<_state_size; idx++)
-      _critic_e[_phi_idx[idx]] += _gamma * _phi_val[idx];
+    for(int idx=0; idx<_num_phi_s && _phi_s_idx[idx]<_state_size; idx++)
+      _critic_e[_phi_s_idx[idx]] += _gamma * _phi_s_val[idx];
     
     for (int state_idx=0; state_idx<_state_size; state_idx++)
       _critic_w[state_idx] += _alpha * delta * _critic_e[state_idx] * _rho;
   }
 
-  float get_value(int num_phi, int* phi_idx, float* phi_val)
+  float get_value(int num_phi_s, int* phi_s_idx, float* phi_s_val)
   {
     float _value=0.0;
 
-    // q_cap(s,a) = sum_i w_i*phi_i(s,a)
-    for(int idx=0; idx<num_phi; idx++)
-      _value += _critic_w[phi_idx[idx]]*phi_val[idx];
+    // q_cap(s,a) = sum_i w_i*phi_s_i(s,a)
+    for(int idx=0; idx<num_phi_s; idx++)
+      _value += _critic_w[phi_s_idx[idx]]*phi_s_val[idx];
     
     return _value;
   }
 
-  void advance_timestep(int num_phi_prime, int* phi_prime_idx, float* phi_prime_val, int action_prime, float reward, int time)    
+  void advance_timestep(int num_phi_s_prime, int* phi_s_prime_idx, float* phi_s_prime_val, float* action_prime, float reward, int time)    
   {
-    _num_phi_prime = num_phi_prime;
-    _phi_prime_idx = phi_prime_idx;
-    _phi_prime_val = phi_prime_val;
+    _num_phi_s_prime = num_phi_s_prime;
+    _phi_s_prime_idx = phi_s_prime_idx;
+    _phi_s_prime_val = phi_s_prime_val;
+        
     _action_prime = action_prime;
 
     _reward = reward;
     _time = time;
-    _num_phi_prime = num_phi_prime; _phi_prime_idx = phi_prime_idx;_phi_prime_val = phi_prime_val;
+    _num_phi_s_prime = num_phi_s_prime; _phi_s_prime_idx = phi_s_prime_idx;_phi_s_prime_val = phi_s_prime_val;
     _action_prime = action_prime;
     _reward = reward;
 
@@ -454,7 +457,7 @@ class qbrain
       if(!_rank) check_convergence();
     }
     
-    if(_num_phi<0)
+    if(_num_phi_s<0)
       return;
     
     delta = get_rpe();
