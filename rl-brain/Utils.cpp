@@ -53,37 +53,33 @@ int bearing_to_action(int theta, int numDirection)
 }
 
 /* transform policy (DxS) to global action-space (along D-axis by theta) */
-void geocentricate(double* pi, int numDirection, int numSpeed, int theta)
+void geocentricate(double* pi, int action_size, int theta)
 {
-  double* pi_old = new double[numDirection*numSpeed];
-  for(int idx=0; idx<numDirection*numSpeed; idx++)
+  double* pi_old = new double[action_size];
+  for(int action_idx=0; action_idx<action_size; action_idx++)
   {
-    pi_old[idx]=pi[idx];
-    pi[idx]=0;
+    pi_old[action_idx]=pi[action_idx];
+    pi[action_idx]=0;
   }
 
-  int heading_action = bearing_to_action(theta, numDirection);
-  for(int numSpeed_idx=0; numSpeed_idx<numSpeed; numSpeed_idx++)
+  int heading_action = bearing_to_action(theta, action_size);
+  for(int action_idx=0; action_idx<action_size; action_idx++)
   {
-    for(int numDirection_idx=0; numDirection_idx<numDirection; numDirection_idx++)
-    {
-      int action_geo_idx = numSpeed_idx*numDirection+(numDirection+numDirection_idx+heading_action)%numDirection;
-      pi[action_geo_idx] += pi_old[numSpeed_idx*numDirection+numDirection_idx];      
-    }
+    int action_geo_idx = (action_size+action_idx+heading_action)%action_size;
+    pi[action_geo_idx] += pi_old[action_idx];      
   }
   delete[] pi_old;
 }
 
-/* transform action (in local action-space) to global action (along D-axis by theta) */
-int geocentricate(int action, int numDirection, int numSpeed, int theta)
-{
-  int heading_action = bearing_to_action(theta, numDirection);
-  return numDirection*floor(action/numDirection) + (action%numDirection + heading_action + numDirection)%numDirection;
-}
-
 /* transform action (in global action-space) to local action (along D-axis by -theta) */
-int egocentricate(int action, int numDirection, int numSpeed, int theta)
+float* egocentricate(float* action, int action_size, int theta)
 {
-  int heading_action = bearing_to_action(theta, numDirection);
-  return numDirection*floor(action/numDirection) + (action%numDirection - heading_action + numDirection)%numDirection;
+  float* action_ego = new float[action_size];
+  for(int action_idx=0; action_idx<action_size; action_idx++)
+    action_ego[action_idx]=0.0;
+
+  int heading_action = bearing_to_action(theta, action_size);
+  for(int action_idx=0; action_idx<action_size; action_idx++)
+    action_ego[action_idx] = action[(action_idx%action_size - heading_action + action_size)%action_size];
+  return action_ego;
 }
