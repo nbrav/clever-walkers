@@ -56,7 +56,7 @@ public class PopulateScene : MonoBehaviour
     int FixedUpdateIndex;
     int trial_elapsed = 0;
     int frame_rate = 30;
-    float trial_duration = 100.0F; //in sec
+    float trial_duration = 500.0F; //in sec
     float time_per_update = 0.5F; //in sec
 
     string tring;
@@ -316,7 +316,7 @@ public class PopulateScene : MonoBehaviour
 		clone.GetComponent<Renderer>().material.color = new Color(0.0f, 0.5f, 1.0f);
                 goal.GetComponent<Renderer>().material.color = new Color(0.0f, 0.5f, 1.0f);
 
-		location = new Vector3(0.0f, 0.0f, 0);
+		location = new Vector3(-5.0f, 0.0f, -15.0f);
 		pose = Quaternion.Euler(0.0f, 0.0f, 0.0f);
 
                 goal.transform.position = new Vector3((index-numOfWalkers/2)*3.0f, 0.5F, -15);
@@ -330,7 +330,7 @@ public class PopulateScene : MonoBehaviour
 		location = new Vector3((index-numOfWalkers/2)*3.0f, 0, 10);
 		pose = Quaternion.Euler(0.0f, 0.0f, 0.0f);
 
-                goal.transform.position = new Vector3((index-numOfWalkers/2)*3.0f, 0.5F, -15);
+                goal.transform.position = new Vector3((index-numOfWalkers/2)*3.0f, 0.0F, -10);
                 goal.transform.localScale = new Vector3(2.0f, 2.0f, 2.0f);
             }
             else
@@ -338,10 +338,10 @@ public class PopulateScene : MonoBehaviour
                 clone.GetComponent<Renderer>().material.color = new Color(1.0f, 0.5f, 0.0f);
                 goal.GetComponent<Renderer>().material.color = new Color(1.0f, 0.5f, 0.0f);
 		
-                location = new Vector3((index-numOfWalkers/2-1.0f)*3.0f, 0, -15);
+                location = new Vector3((index-numOfWalkers/2-1.0f)*3.0f, 0, -10);
 		pose = Quaternion.Euler(0.0f, 180.0f, 0.0f);
 
-                goal.transform.position = new Vector3((index-numOfWalkers/2-1.0f)*3.0f, 0.5F, 10);
+                goal.transform.position = new Vector3((index-numOfWalkers/2-1.0f)*3.0f, 0.0F, 10);
                 goal.transform.localScale = new Vector3(2.0f, 2.0f, 2.0f);
             }
 
@@ -351,15 +351,12 @@ public class PopulateScene : MonoBehaviour
         clone.GetComponent<QAgent>().setResetPose(location, pose);
 
         // draw PlaceCells state
-        if (VizPlaceCell && index == 0)
+        if (VizPlaceCell && index == 5)
             clone.GetComponent<QAgent>().vizPlaceCell = true;
 
         // draw sector state
         if (VizCollisionCells && index == 0)
-	{
 	    clone.GetComponent<QAgent>().vizCollisionCells = true;
-            clone.GetComponent<DrawSector>().enabled = false;
-	}
 
         // draw indicator reward
         if (!VizRewards)
@@ -369,7 +366,6 @@ public class PopulateScene : MonoBehaviour
 
 	if(!VizTrail)
             clone.GetComponent<QAgent>().VizTrail = true;
-	    
 
         // set time-scale
         if (Learning)

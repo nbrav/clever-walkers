@@ -265,7 +265,7 @@ int main(int argc, char **argv)
 	    fflush(stdout);
 		  
 	    brain_goal.advance_timestep(num_phi_goal,phi_goal_idx,phi_goal_val,action,reward_goal,timestep);
-	    brain_collide.advance_timestep(num_phi_collide,phi_collide_idx,phi_collide_val,action_collide,reward_collide,timestep);
+	    //brain_collide.advance_timestep(num_phi_collide,phi_collide_idx,phi_collide_val,action_collide,reward_collide,timestep);
 	  }
 
 	  // s = s' 
