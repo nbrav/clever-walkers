@@ -44,9 +44,6 @@ public class PopulateScene : MonoBehaviour
 
     GameObject[] agent;
 
-    Vector3 IntelligentAgentPosition;
-    Quaternion IntelligentAgentRotation;
-
     /* RL variables (experimental) */
     bool waiting_for_transition = false;
     float[] reset_counter;
@@ -56,13 +53,10 @@ public class PopulateScene : MonoBehaviour
     int FixedUpdateIndex;
     int trial_elapsed = 0;
     int frame_rate = 30;
-    float trial_duration = 500.0F; //in sec
+    float trial_duration = 100.0F; //in sec
     float time_per_update = 0.5F; //in sec
 
-    string tring;
-    string display_string;
-
-    /* UDP socket and channel set-up */
+   /* UDP socket and channel set-up */
 
     public Socket[] socket;
     string THIS_IP = "127.0.0.1";
@@ -72,9 +66,6 @@ public class PopulateScene : MonoBehaviour
     void Awake()
     {
         agent = new GameObject[numOfWalkers];
-
-        IntelligentAgentRotation = Quaternion.Euler(0, 240, 0);
-        IntelligentAgentPosition = new Vector3(-140.0f, 0.0f, 210.0f);
 
         GenerateAgent();
     }
@@ -148,16 +139,22 @@ public class PopulateScene : MonoBehaviour
                 socket[idx].ReceiveFrom(data_in, 2*sizeof(float), 0, ref Remote);
 
 		// DEBUGGIN
-		/*if(idx==0)
+		if(idx==0)
+		{
+		    motor_command[0] = Mathf.PI*3.0f/4.0f;
+		    motor_command[1] = 0.1f;
+		}
+		else
 		{
 		    motor_command[0] = 0.0f;
 		    motor_command[1] = 0.0f;
 		}
-		else*/
+		
+		/*else
 		{		   
 		    motor_command[0] = BitConverter.ToSingle(data_in, 0);
 		    motor_command[1] = BitConverter.ToSingle(data_in, sizeof(float));
-		}
+		}*/
 		
                 // if local reset
                 if (reset_counter[idx] <= 0.0f && global_reset != 0.0f)
@@ -218,7 +215,6 @@ public class PopulateScene : MonoBehaviour
         {
             Debug.Log(err.ToString() + " FixedUpdate unknown error: not receiving brain signal..");
         }
-        display_string += "\nTrial:" + trial_elapsed.ToString();
     }
 
     void createSmartAgent(int index)
@@ -351,7 +347,7 @@ public class PopulateScene : MonoBehaviour
         clone.GetComponent<QAgent>().setResetPose(location, pose);
 
         // draw PlaceCells state
-        if (VizPlaceCell && index == 5)
+        if (VizPlaceCell && index == 0)
             clone.GetComponent<QAgent>().vizPlaceCell = true;
 
         // draw sector state
@@ -388,5 +384,8 @@ public class PopulateScene : MonoBehaviour
     {
         for (int i=0; i < numOfWalkers; i++)
             createSmartAgent(i);
+
+	for (int i=0; i < numOfWalkers; i++)
+	    agent[i].GetComponent<QAgent>().set_parent_array(agent);
     }
 }

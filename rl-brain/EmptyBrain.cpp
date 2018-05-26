@@ -165,10 +165,7 @@ int main(int argc, char **argv)
 	  if(HALTING)
 	  {
 	    if(_VERBOSE_UDP && _master)
-	    {
-	       printf("\n\n\nRESET! [AgIdx:%d T:%d] ",_rank,timestep); fflush(stdout);
-	    }
-	    // TODO temp_action=HALTING_ACTION;
+	      printf("\n\n\nRESET! [AgIdx:%d T:%d] ",_rank,timestep); fflush(stdout);
 	    continue;
 	  }
 
@@ -208,8 +205,8 @@ int main(int argc, char **argv)
 	  for(int phi_idx=0; phi_idx<num_phi_collide; phi_idx++)
 	  {
 	    phi_collide_idx[phi_idx] = int(sensor_msg[sensor_msg_idx++]);
-	    phi_collide_val[phi_idx] = 1;
-	    if(_VERBOSE_UDP && _master) cout<<phi_collide_idx[phi_idx]<<",";
+	    phi_collide_val[phi_idx] = sensor_msg[sensor_msg_idx++];
+	    if(_VERBOSE_UDP && _master) cout<<phi_collide_idx[phi_idx]<<"->"<<phi_collide_val[phi_idx]<<",";
 	  }
 	  if(_VERBOSE_UDP && _master) cout<<")";
 
@@ -234,14 +231,14 @@ int main(int argc, char **argv)
 
 	  // combine to behavioural policy
 	  action_selection(policy_behaviour, policy_goal, policy_collide, action_size, heading_direction, _master*_VERBOSE_AS);
-	  //gain_policy(policy_behaviour,action_size,5.0);
+	  
+	  gain_policy(policy_behaviour,action_size,10.0);
 
 	  // convert to action distribtions
-	  //TODO action = get_softmax_action(policy_behaviour,action_size);
 	  for(int action_idx=0; action_idx<action_size; action_idx++)
 	    action[action_idx] = float(policy_behaviour[action_idx]);	  
 	  action_collide = egocentricate(action,action_size,heading_direction);
-
+  
 	  // find motor command (direction,speed) from action distributions
 	  brain_goal.action_to_motor(action,motor_msg);
 	  
@@ -262,9 +259,8 @@ int main(int argc, char **argv)
 	  {
 	    //brain_goal.update_importance_samples(policy_goal, policy_behaviour, action);
 	    //brain_collide.update_importance_samples(policy_collide, policy_behaviour, action);
-	    fflush(stdout);
 		  
-	    brain_goal.advance_timestep(num_phi_goal,phi_goal_idx,phi_goal_val,action,reward_goal,timestep);
+	    //brain_goal.advance_timestep(num_phi_goal,phi_goal_idx,phi_goal_val,action,reward_goal,timestep);
 	    //brain_collide.advance_timestep(num_phi_collide,phi_collide_idx,phi_collide_val,action_collide,reward_collide,timestep);
 	  }
 

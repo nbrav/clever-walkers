@@ -55,9 +55,9 @@ def create_patches(Q,ax):
     return patches        
 
 if(tag=="goal"):
-    state_size_x = 15; state_size_y = 15; action_size = 8*3;
+    state_size_x = 15; state_size_y = 15; action_size = 8;
 else:
-    state_size_x = 100; state_size_y = 10; action_size=8*3;
+    state_size_x = 100; state_size_y = 10; action_size=8;
 
 
 fig = plt.figure(figsize=(10,8))
@@ -65,8 +65,8 @@ fig = plt.figure(figsize=(10,8))
 ax1 = plt.subplot(1,1,1)
 ax1.set_xticks(()); ax1.set_yticks(());
 
-VIEW_WEIGHTS = False;
-VIEW_QUIVER = True;
+VIEW_WEIGHTS = True;
+VIEW_QUIVER = False;
 VIEW_DYNAMICS = False
 
 if VIEW_QUIVER:

@@ -19,12 +19,12 @@ TRAIN_PATH = "./reward-punishment.";
 TEST_PATH = "./trial.";
 
 REWARD_PATH = [TEST_PATH,];
-BIN_SIZE    = [10];
+BIN_SIZE    = [1];
 
 idx_colour = ['r','b','g','y','k','r','b','g','y','k']
 idx_legend = []
 
-fig, axes = plt.subplots(nrows=len(tag), ncols=1)
+fig, axes = plt.subplots(nrows=len(tag), ncols=1, figsize=(16, 8), dpi=80, facecolor='w', edgecolor='k')
 
 for goal_tag in tag:
     for _set in range(0,len(REWARD_PATH)):        
@@ -46,31 +46,19 @@ for goal_tag in tag:
 
             plt.plot(R_smooth,idx_colour[idx],linewidth=2.5,alpha=0.5)
             
-            #if REWARD_PATH[_set]==TRAIN_PATH:
-            #    plt.title('Raw Reward frequency: '+goal_tag)
-            #elif REWARD_PATH[_set]==TEST_PATH:
-            #    plt.title('Learning curve (evaluation): '+goal_tag)
-
-            #\n(running average: '+str(BIN_SIZE[_set])+'
-            
             if goal_tag=="goal":
                 plt.ylabel(r'$<$reward$>$', fontsize=20)
-                plt.ylim(-1,30)
+                #plt.ylim(-1,30)
             else:
                 plt.ylabel('$<$collision$>$', fontsize=20)
-                plt.ylim(-1.0,7.1)
-            plt.xlim(-10,750)
+                #plt.ylim(-1.0,20.1)
+            #plt.xlim(-10,150)
             
         if goal_tag=="goal":
-            #plt.plot(np.ones(R_smooth.shape[0]),'k--',linewidth=1.5,alpha=1)
-            plt.text(reward.shape[0]*3/4, 20, r'goal module',
-                    verticalalignment='top', horizontalalignment='right', fontsize=20)
+            plt.text(0.9, 0.9, r'goal module', transform=im.transAxes, verticalalignment='top', horizontalalignment='right', fontsize=20)
         else:                
-            plt.text(reward.shape[0]*3/4, 3, r'collision module',
-                    verticalalignment='top', horizontalalignment='right', fontsize=20)
-            
+            plt.text(0.95, 0.9, r'collision module', transform=im.transAxes, verticalalignment='top', horizontalalignment='right', fontsize=20)            
             plt.xlabel('time (# of trials)',fontsize=20)
-            plt.plot(np.zeros(R_smooth.shape[0]),'k--',linewidth=1.5,alpha=1)
             
 print("Number of updates: ",reward.shape[0])        
 

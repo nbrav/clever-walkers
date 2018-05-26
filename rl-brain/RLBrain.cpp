@@ -44,9 +44,6 @@ class qbrain
   // action
   int _action_size;
 
-  // TODO: deprecate soon
-  //int _action, _action_prime;
-
   float *_action_code;
   float *_action, *_action_prime;
     
@@ -136,7 +133,7 @@ class qbrain
 	_actor_w[state_idx].resize(_action_size,1);
 	for (int action_idx=0; action_idx<_action_size; action_idx++)
 	{
-	  _actor_w[state_idx][action_idx] = (float)rand()/RAND_MAX;
+	  _actor_w[state_idx][action_idx] = (float)rand()/RAND_MAX/1.0;
 	}
       }
     }
@@ -160,7 +157,7 @@ class qbrain
     {
       _critic_w.resize(_state_size);
       for (int state_idx=0; state_idx<_state_size; state_idx++)
-	_critic_w[state_idx] = (float)rand()/RAND_MAX;
+	_critic_w[state_idx] = 0.0; //(float)rand()/RAND_MAX/10.0;
     }
     
     _reward = 0.0;
@@ -177,7 +174,7 @@ class qbrain
 
   void parse_param()
   {
-    _alpha   = 0.01;  // learning rate
+    _alpha   = 0.1;  // learning rate
     _rho     = 1.00;  // importance-sampling 
     _lambda  = 0.60;  // eligibility parameter 0.8
 
@@ -319,7 +316,7 @@ class qbrain
 
 	if(h[action_idx]!=h[action_idx]) cerr<<"\nNANs in Q_"<<_tag;
       }
-    
+
     for(int action_idx=0; action_idx<_action_size; action_idx++)
     {
       policy[action_idx] = exp((h[action_idx]-hmax));
@@ -341,20 +338,19 @@ class qbrain
   void action_to_motor(float* action, float* motor_msg)
   {
     float velocity_x=0.0, velocity_y=0.0;
-    //if(!_rank) cout<<"\n\n";
+
     for(int action_idx=0; action_idx<_action_size; action_idx++)
     {
       velocity_x += cos(_action_code[action_idx])*action[action_idx];
       velocity_y += sin(_action_code[action_idx])*action[action_idx];
-      //if(!_rank) cout<<"(c="<<_action_code[action_idx]<<" x="<<action[action_idx]<<"; vx="<<velocity_x<<",vy="<<velocity_y<<") ";
     }
 
     if(velocity_x==0.0)
       motor_msg[0]=0.0;
     else	
       motor_msg[0] = atan2(velocity_y,velocity_x);
+
     motor_msg[1] = sqrt(velocity_x*velocity_x+velocity_y*velocity_y);
-    //if(!_rank) cout<<"->theta="<<180.0/PI*motor_msg[0]<<" speed="<<motor_msg[1];
   }
 
   float get_rpe()
@@ -377,15 +373,16 @@ class qbrain
       _rho_t = policy_our[a_t]/policy_behaviour[a_t];
     
     _rho = _rho_t<1?_rho_t:1.0;
-    //if(!_rank) cout<<"\nIS"<<_tag<<"="<<_rho;
   }
 
   double grad_entropy(double* policy)
   {
     double grad_H = 0.0;
+
     for(int idx=0; idx<_num_phi_s && _phi_s_idx[idx]<_state_size; idx++)
       for(int action_idx=0; action_idx<_action_size; action_idx++)
 	grad_H += _phi_s_val[idx]*(1.0/_action_size-policy[action_idx]);
+
     return grad_H;
   }
 
@@ -403,8 +400,8 @@ class qbrain
     // efference-update of e-trace
     for(int idx=0; idx<_num_phi_s && _phi_s_idx[idx]<_state_size; idx++)
       for(int action_idx=0; action_idx<_action_size; action_idx++)
-	_actor_e[_phi_s_idx[idx]][action_idx] += _gamma*_phi_s_val[idx]*(_action[action_idx]-policy[action_idx]);    
-
+	_actor_e[_phi_s_idx[idx]][action_idx] += _gamma*_phi_s_val[idx]*(_action[action_idx]-policy[action_idx]);
+    
     // weight consolidation
     for(int state_idx=0; state_idx<_state_size; state_idx++)
       for(int action_idx=0; action_idx<_action_size; action_idx++)
