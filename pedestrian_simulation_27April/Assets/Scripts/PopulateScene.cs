@@ -155,12 +155,12 @@ public class PopulateScene : MonoBehaviour
 
                 socket[idx].ReceiveFrom(data_in, 2*sizeof(float), 0, ref Remote);
 
-		if(idx==2)
+		/*if(idx==2)
 		{
-		    motor_command[0] = 1.7f;//BitConverter.ToSingle(data_in, 0);
-		    motor_command[1] = 0.1f;//BitConverter.ToSingle(data_in, sizeof(float));
+		    motor_command[0] = 1.7f;
+		    motor_command[1] = 0.1f;
 		}
-		else
+		else*/
 		{
 		    motor_command[0] = BitConverter.ToSingle(data_in, 0);
 		    motor_command[1] = BitConverter.ToSingle(data_in, sizeof(float));
@@ -259,7 +259,7 @@ public class PopulateScene : MonoBehaviour
 
         float square_dist = 13f;
 
-        string SCENARIO = "crossing"; //"hallway"; //"circle"; //"narrowpassage";
+        string SCENARIO =  "crossing";; //"hallway"; //"circle"; //"narrowpassage";
 
         if (SCENARIO == "narrowpassage")
         {
@@ -323,83 +323,83 @@ public class PopulateScene : MonoBehaviour
 	    {
 		case 0:
 		    our_color = new Color(0.0f, 0.5f, 1.0f);
+		    pose = Quaternion.Euler(0.0f, 90.0f, 0.0f);
 		    break;
 		case 1:
 		    our_color = new Color(1.0f, 0.5f, 0.0f);
+		    pose = Quaternion.Euler(0.0f, 0.0f, 0.0f);
 		    break;
 	    }
 
 	    switch(index)
 	    {
 		case 0:
-		    location = new Vector3(-17.5f, 0.0f, -2.125f);
-		    goal.transform.position = new Vector3(17.5f, 0.0f, -2.125f);
+		    location = new Vector3(-17.5f, 0.0f, -2.625f);
+		    goal.transform.position = new Vector3(17.5f, 0.0f, -2.625f);
 		    break;
 		case 1:
-		    location = new Vector3(-17.5f, 0.0f, -2.125f+1.75f);
-		    goal.transform.position = new Vector3(17.5f, 0.0f, -2.125f+1.75f);		    
+		    location = new Vector3(-17.5f, 0.0f, -2.625f+1.75f);
+		    goal.transform.position = new Vector3(17.5f, 0.0f, -2.625f+1.75f);		    
 		    break;
 		case 2:
-		    location = new Vector3(-17.5f, 0.0f, -2.125f+1.75f*2);
-		    goal.transform.position = new Vector3(17.5f, 0.0f, -2.125f+1.75f*2);
+		    location = new Vector3(-17.5f, 0.0f, -2.625f+1.75f*2);
+		    goal.transform.position = new Vector3(17.5f, 0.0f, -2.625f+1.75f*2);
 		    break;
 		case 3:
-		    location = new Vector3(-17.5f, 0.0f, -2.125f+1.75f*3);
-		    goal.transform.position = new Vector3(17.5f, 0.0f, -2.125f+1.75f*3);
+		    location = new Vector3(-17.5f, 0.0f, -2.625f+1.75f*3);
+		    goal.transform.position = new Vector3(17.5f, 0.0f, -2.625f+1.75f*3);
 		    break;
 		case 4:
-		    location = new Vector3(-17.5f+1.75f, 0.0f, -2.125f);
-		    goal.transform.position = new Vector3(17.5f-1.75f, 0.0f, -2.125f);
+		    location = new Vector3(-17.5f+1.75f, 0.0f, -2.625f);
+		    goal.transform.position = new Vector3(17.5f-1.75f, 0.0f, -2.625f);
 			break;
 		case 5:
-		    location = new Vector3(-17.5f+1.75f, 0.0f, -2.125f+1.75f);
-		    goal.transform.position = new Vector3(17.5f-1.75f, 0.0f, -2.125f+1.75f);
+		    location = new Vector3(-17.5f+1.75f, 0.0f, -2.625f+1.75f);
+		    goal.transform.position = new Vector3(17.5f-1.75f, 0.0f, -2.625f+1.75f);
 		    break;
 		case 6:
-		    location = new Vector3(-17.5f+1.75f, 0.0f, -2.125f+1.75f*2);
-		    goal.transform.position = new Vector3(17.5f-1.75f, 0.0f, -2.125f+1.75f*2);
+		    location = new Vector3(-17.5f+1.75f, 0.0f, -2.625f+1.75f*2);
+		    goal.transform.position = new Vector3(17.5f-1.75f, 0.0f, -2.625f+1.75f*2);
 		    break;
 		case 7:
-		    location = new Vector3(-17.5f+1.75f, 0.0f, -2.125f+1.75f*3);
-		    goal.transform.position = new Vector3(17.5f-1.75f, 0.0f, -2.125f+1.75f*3);
+		    location = new Vector3(-17.5f+1.75f, 0.0f, -2.625f+1.75f*3);
+		    goal.transform.position = new Vector3(17.5f-1.75f, 0.0f, -2.625f+1.75f*3);
 		    break;
 		case 8:
-		    location = new Vector3(2.125f, 0.0f, -17.5f);
-		    goal.transform.position = new Vector3(2.125f, 0.0f, 17.5f);
+		    location = new Vector3(2.625f, 0.0f, -17.5f);
+		    goal.transform.position = new Vector3(2.625f, 0.0f, 17.5f);
 		    break;
 		case 9:
-		    location = new Vector3(2.125f-1.75f, 0.0f, -17.5f);
-		    goal.transform.position = new Vector3(2.125f-1.75f, 0.0f, 17.5f);
+		    location = new Vector3(2.625f-1.75f, 0.0f, -17.5f);
+		    goal.transform.position = new Vector3(2.625f-1.75f, 0.0f, 17.5f);
 		    break;
 		case 10:
-		    location = new Vector3(2.125f-1.75f*2, 0.0f, -17.5f);
-		    goal.transform.position = new Vector3(2.125f-1.75f*2, 0.0f, 17.5f);
+		    location = new Vector3(2.625f-1.75f*2, 0.0f, -17.5f);
+		    goal.transform.position = new Vector3(2.625f-1.75f*2, 0.0f, 17.5f);
 		    break;
 		case 11:
-		    location = new Vector3(2.125f-1.75f*3, 0.0f, -17.5f);
-		    goal.transform.position = new Vector3(2.125f-1.75f*3, 0.0f, 17.5f);
+		    location = new Vector3(2.625f-1.75f*3, 0.0f, -17.5f);
+		    goal.transform.position = new Vector3(2.625f-1.75f*3, 0.0f, 17.5f);
 		    break;
 		case 12:
-		    location = new Vector3(2.125f, 0.0f, -17.5f-1.75f);
-		    goal.transform.position = new Vector3(2.125f, 0.0f, 17.5f+1.75f);
+		    location = new Vector3(2.625f, 0.0f, -17.5f-1.75f);
+		    goal.transform.position = new Vector3(2.625f, 0.0f, 17.5f+1.75f);
 		    break;
 		case 13:
-		    location = new Vector3(2.125f-1.75f*1, 0.0f, -17.5f-1.75f);
-		    goal.transform.position = new Vector3(2.125f-1.75f*1, 0.0f, 17.5f+1.75f);
+		    location = new Vector3(2.625f-1.75f*1, 0.0f, -17.5f-1.75f);
+		    goal.transform.position = new Vector3(2.625f-1.75f*1, 0.0f, 17.5f+1.75f);
 		    break;
 		case 14:
-		    location = new Vector3(2.125f-1.75f*2, 0.0f, -17.5f-1.75f);
-		    goal.transform.position = new Vector3(2.125f-1.75f*2, 0.0f, 17.5f+1.75f);
+		    location = new Vector3(2.625f-1.75f*2, 0.0f, -17.5f-1.75f);
+		    goal.transform.position = new Vector3(2.625f-1.75f*2, 0.0f, 17.5f+1.75f);
 		    break;
 		case 15:
-		    location = new Vector3(2.125f-1.75f*3, 0.0f, -17.5f-1.75f);
-		    goal.transform.position = new Vector3(2.125f-1.75f*3, 0.0f, 17.5f+1.75f);
+		    location = new Vector3(2.625f-1.75f*3, 0.0f, -17.5f-1.75f);
+		    goal.transform.position = new Vector3(2.625f-1.75f*3, 0.0f, 17.5f+1.75f);
 		    break;
 	    }
 		    
 	    clone.GetComponent<Renderer>().material.color = our_color;
-
-	    pose = Quaternion.Euler(0.0f, UnityEngine.Random.Range(0, 360), 0.0f);
 
             goal.transform.localScale = new Vector3(1.0f, 1.0f, 1.0f);
             goal.GetComponent<Renderer>().material.color = our_color;
