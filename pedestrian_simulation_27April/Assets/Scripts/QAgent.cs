@@ -19,7 +19,7 @@ public class QAgent : MonoBehaviour
     /* reinforcement learning parameters */
 
     // ego-centric state-space parameters
-    int num_disc=5, num_sector=10;
+    int num_disc=5, num_sector=15;
     float[] disc_radii, sector_angles;
     float[,] collisioncell;
     float[,,] state_array;
@@ -78,7 +78,7 @@ public class QAgent : MonoBehaviour
 
     float AGENT_HEIGHT = 0.0f; // to set-up raycast visuals 
     float RAYCAST_INTERVAL = Mathf.Deg2Rad*5.0f;
-
+ 
     // Set rate
     void Awake()
     {
@@ -155,11 +155,12 @@ public class QAgent : MonoBehaviour
 		    ellipseCollisionCell[sector*num_disc+disc].SetupEllipse
 			(radius_radial, radius_tangential,
 			 new Vector3( disc_radii[disc]*Mathf.Cos(sector_angles[sector]),
-				      0.0f,
+				      UnityEngine.Random.Range(-0.1f, 0.1f),
 				      disc_radii[disc]*Mathf.Sin(-sector_angles[sector])),
 			 new Color(0.0f, 1.0f, 0.0f, 0.1f),
 			 this.gameObject);
 		}
+
 	    }
 
 	state_array = new float[sector_angles.Length, disc_radii.Length, 10];
@@ -179,8 +180,8 @@ public class QAgent : MonoBehaviour
                     break;
                 }
 
-                placecell[pc_idx, 0] = (x - M / 2.0f + 0.25f * (2.0f * (y % 2) - 1.0f)) * PC_SIZE; 
-                placecell[pc_idx, 1] = (y - N / 2.0f - 0.5f) * PC_SIZE;
+                placecell[pc_idx, 0] = (x - M/2.0f + 0.25f*(2.0f*(y%2) - 1.0f))*PC_SIZE; 
+                placecell[pc_idx, 1] = (y - N/2.0f - 0.5f)*PC_SIZE;
                 placecell[pc_idx, 2] = 0.0f;
 
 		//(new Vector3(placecell[pc_idx, 0], 0.0f, placecell[pc_idx, 1]), pc_sigma, new Color(placecell[pc_idx, 2], 1 - placecell[pc_idx, 2], 0.0f), null)
@@ -191,7 +192,7 @@ public class QAgent : MonoBehaviour
                     circlePlaceCell[pc_idx].SetupCircle
 			(new Vector3(placecell[pc_idx, 0], 0.0f, placecell[pc_idx, 1]),
 			 pc_sigma,
-			 new Color(placecell[pc_idx, 2], 0.0f, 0.0f, placecell[pc_idx, 2]),
+			 new Color(0.5f, 0.0f, 0.0f, 0.5f),
 			 null);
                 }
 
@@ -260,7 +261,7 @@ public class QAgent : MonoBehaviour
 	
         // visualize trail
         Vector3 ray_vector = next_position;
-        if(VizTrail) DrawLine(ray_origin, ray_vector, Color.red, 25);
+        if(VizTrail) DrawLine(ray_origin, ray_vector, Color.red, 200);
     }
 
     /*---------------------------------------------------------------
@@ -323,13 +324,13 @@ public class QAgent : MonoBehaviour
 			int cc_idx = sector*num_disc + disc;
 			
 			Vector3 cc_vect = new Vector3(collisioncell[cc_idx,0], 0, collisioncell[cc_idx,1]);
-			Vector3 cc2obs_cart  = (agent2obs + cc_vect);	
+			Vector3 cc2obs_cart  = transform.position - _agents[idx].transform.position + cc_vect;	
 			Vector2 cc2obs_polar = new Vector2(cc2obs_cart.magnitude, Mathf.Atan2(cc2obs_cart[0], cc2obs_cart[2]));
 			
-			float distance = Mathf.Sqrt(cc2obs_polar[0]*cc2obs_polar[0]/collisioncell[idx,2]/collisioncell[idx,2] +
-						    cc2obs_polar[1]*cc2obs_polar[1]/collisioncell[idx,3]/collisioncell[idx,3]);
+			float distance = Mathf.Sqrt(cc2obs_polar[0]*cc2obs_polar[0]/collisioncell[cc_idx,2]/collisioncell[cc_idx,2] +
+						    cc2obs_polar[1]*cc2obs_polar[1]/collisioncell[cc_idx,3]/collisioncell[cc_idx,3]);
 			
-			collisioncell[cc_idx,4] += Mathf.Exp(-0.5f*distance);
+			collisioncell[cc_idx,4] += Mathf.Exp(-0.5f*distance)/0.5f/Mathf.PI/collisioncell[cc_idx,2]/collisioncell[cc_idx,3];
 			//state_array[sector,disc,0] = collisioncell[cc_idx,4];
 		    }
 	    }
@@ -350,8 +351,11 @@ public class QAgent : MonoBehaviour
 	if(vizCollisionCells) 
 	    for (int sector = 0; sector < num_sector*2; sector++)
 		for (int disc = 0; disc < num_disc; disc++)
+		{
 		    ellipseCollisionCell[sector*num_disc+disc].UpdateMeshColor
 			(new Color(0.0f, 1.0f, 0.0f, collisioncell[sector*num_disc+disc,4]));
+		}
+
 
 	return phi;
     }
@@ -492,7 +496,6 @@ public class QAgent : MonoBehaviour
         if (potential_previous != -1.0f)
         {
             float reward_shape = potential_previous - Vector3.Distance(goalObject.transform.position, transform.position);
-            //Debug.Log(potential_previous+"->"+Vector3.Distance(goalObject.transform.position,transform.position)+"="+Mathf.Max(Mathf.Min(reward_shape,1.0f),-1.0f));
             potential_previous = Vector3.Distance(goalObject.transform.position, transform.position);
             return Mathf.Max(Mathf.Min(reward_shape, 1.0f), -1.0f);
         }

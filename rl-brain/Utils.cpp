@@ -53,33 +53,44 @@ int bearing_to_action(int theta, int numDirection)
 }
 
 /* transform policy (DxS) to global action-space (along D-axis by theta) */
-void geocentricate(double* pi, int action_size, int theta)
+void geocentricate(double* pi, int direction_size, int speed_size, int theta)
 {
-  double* pi_old = new double[action_size];
-  for(int action_idx=0; action_idx<action_size; action_idx++)
+  double* pi_old = new double[direction_size*speed_size];
+  for(int action_idx=0; action_idx<direction_size*speed_size; action_idx++)
   {
     pi_old[action_idx]=pi[action_idx];
     pi[action_idx]=0;
   }
 
-  int heading_action = bearing_to_action(theta, action_size);
-  for(int action_idx=0; action_idx<action_size; action_idx++)
+  int heading_direction = bearing_to_action(theta, direction_size);
+  for(int speed_idx=0; speed_idx<speed_size; speed_idx++)
   {
-    int action_geo_idx = (action_size+action_idx+heading_action)%action_size;
-    pi[action_geo_idx] += pi_old[action_idx];      
+    for(int direction_idx=0; direction_idx<direction_size; direction_idx++)
+    {
+      int action_geo_idx =  speed_idx*direction_size + (direction_size+direction_idx+heading_direction)%direction_size;
+      pi[action_geo_idx] += pi_old[speed_idx*direction_size + direction_idx];
+    }
   }
   delete[] pi_old;
 }
 
 /* transform action (in global action-space) to local action (along D-axis by -theta) */
-float* egocentricate(float* action, int action_size, int theta)
+float* egocentricate(float* action, int direction_size, int speed_size, int theta)
 {
-  float* action_ego = new float[action_size];
-  for(int action_idx=0; action_idx<action_size; action_idx++)
+  float* action_ego = new float[direction_size*speed_size];
+  
+  for(int action_idx=0; action_idx<direction_size*speed_size; action_idx++)
     action_ego[action_idx]=0.0;
 
-  int heading_action = bearing_to_action(theta, action_size);
-  for(int action_idx=0; action_idx<action_size; action_idx++)
-    action_ego[action_idx] = action[(action_idx%action_size - heading_action + action_size)%action_size];
+  int heading_direction = bearing_to_action(theta, direction_size*speed_size);  
+  for(int speed_idx=0; speed_idx<speed_size; speed_idx++)
+  {
+    for(int direction_idx=0; direction_idx<direction_size; direction_idx++)
+    {
+      int action_ego_idx = speed_idx*direction_size + (direction_idx%direction_size - heading_direction + direction_size)%direction_size;	
+      action_ego[speed_idx*direction_size + direction_idx] = action[action_ego_idx];
+    }
+  }
+  
   return action_ego;
 }

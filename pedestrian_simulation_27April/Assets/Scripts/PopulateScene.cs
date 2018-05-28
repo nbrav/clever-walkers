@@ -55,14 +55,19 @@ public class PopulateScene : MonoBehaviour
     int frame_rate = 30;
     float trial_duration = 100.0F; //in sec
     float time_per_update = 0.5F; //in sec
-
-   /* UDP socket and channel set-up */
+    
+    /* UDP socket and channel set-up */
 
     public Socket[] socket;
     string THIS_IP = "127.0.0.1";
     string BESKOW_IP = "193.11.167.133";
     int PORT = 7890;
 
+    /* Timing */
+    float[] TimeStart;
+    float[] TimeToGoal;
+    StreamWriter[] sr;
+    
     void Awake()
     {
         agent = new GameObject[numOfWalkers];
@@ -89,6 +94,18 @@ public class PopulateScene : MonoBehaviour
             IPEndPoint brain_EP = new IPEndPoint(IPAddress.Any, PORT + idx);
             socket[idx].Bind(brain_EP);
         }
+
+	/* Timing */
+	
+	sr = new StreamWriter[numOfWalkers];
+	TimeStart = new float[numOfWalkers];
+	TimeToGoal = new float[numOfWalkers];
+        for (int idx = 0; idx < numOfWalkers; idx++)
+	{
+	    sr[idx] = File.CreateText("/home/naba/Desktop/clever-walkers/rl-brain/data/TimeToGoal"+idx+".log");
+	    TimeStart[idx] = 0.0f;
+	    TimeToGoal[idx] = -1.0f;
+	}
     }
 
     // Update is called once per frame
@@ -138,27 +155,23 @@ public class PopulateScene : MonoBehaviour
 
                 socket[idx].ReceiveFrom(data_in, 2*sizeof(float), 0, ref Remote);
 
-		// DEBUGGIN
-		if(idx==0)
+		if(idx==2)
 		{
-		    motor_command[0] = Mathf.PI*3.0f/4.0f;
-		    motor_command[1] = 0.1f;
+		    motor_command[0] = 1.7f;//BitConverter.ToSingle(data_in, 0);
+		    motor_command[1] = 0.1f;//BitConverter.ToSingle(data_in, sizeof(float));
 		}
 		else
 		{
-		    motor_command[0] = 0.0f;
-		    motor_command[1] = 0.0f;
-		}
-		
-		/*else
-		{		   
 		    motor_command[0] = BitConverter.ToSingle(data_in, 0);
 		    motor_command[1] = BitConverter.ToSingle(data_in, sizeof(float));
-		}*/
+		}
 		
                 // if local reset
                 if (reset_counter[idx] <= 0.0f && global_reset != 0.0f)
                 {
+		    if(reset_counter[idx]<=0.0f && TimeToGoal[idx]==-1.0f)
+			TimeToGoal[idx] = Time.time - TimeStart[idx];
+		    
                     agent[idx].GetComponent<QAgent>().set_udp(new float[2]{0.0f,0.0f});
 
                     float[] data_out_float_reset = new float[1];
@@ -169,6 +182,10 @@ public class PopulateScene : MonoBehaviour
                 }
                 else if (global_reset == 0.0f)
                 {
+		    write_TimeToGoal(idx,TimeToGoal[idx]);
+
+		    //Debug.Break();
+		    
 		    agent[idx].GetComponent<QAgent>().reset(); //NO RESET
 
                     float[] data_out_float_reset = new float[2];
@@ -179,11 +196,15 @@ public class PopulateScene : MonoBehaviour
 
                     for (int reset_idx = 0; reset_idx < numOfWalkers; reset_idx++)
                         reset_counter[reset_idx] = trial_duration;
+
+		    TimeStart[idx] = Time.time;
+		    TimeToGoal[idx] = -1.0f;
                 }
                 else
                 {
                     reset_counter[idx] -= 1;//Time.fixedDeltaTime;
                     agent[idx].GetComponent<QAgent>().set_udp(motor_command);
+		    TimeToGoal[idx] = -1.0f;
                 }
 
                 // sending state,reward
@@ -217,6 +238,12 @@ public class PopulateScene : MonoBehaviour
         }
     }
 
+    void write_TimeToGoal(int agentIdx, float t)
+    {
+	sr[agentIdx].WriteLine ("{0}", t);
+	sr[agentIdx].Flush(); 
+    }
+
     void createSmartAgent(int index)
     {
         GameObject clone = GameObject.Instantiate(HumanPrefab);
@@ -232,7 +259,7 @@ public class PopulateScene : MonoBehaviour
 
         float square_dist = 13f;
 
-        string SCENARIO = "hallway"; //"circle"; //"narrowpassage";
+        string SCENARIO = "crossing"; //"hallway"; //"circle"; //"narrowpassage";
 
         if (SCENARIO == "narrowpassage")
         {
@@ -285,6 +312,140 @@ public class PopulateScene : MonoBehaviour
 	    }
 	    clone.GetComponent<QAgent>().setGoal(goal);	    
         }
+	else if(SCENARIO=="crossing")
+	{
+            goal = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            goal.name = "goal" + index.ToString();
+
+	    Color our_color = new Color(0.0f,0.0f,0.0f);
+
+	    switch(index/8)
+	    {
+		case 0:
+		    our_color = new Color(0.0f, 0.5f, 1.0f);
+		    break;
+		case 1:
+		    our_color = new Color(1.0f, 0.5f, 0.0f);
+		    break;
+	    }
+
+	    switch(index)
+	    {
+		case 0:
+		    location = new Vector3(-17.5f, 0.0f, -2.125f);
+		    goal.transform.position = new Vector3(17.5f, 0.0f, -2.125f);
+		    break;
+		case 1:
+		    location = new Vector3(-17.5f, 0.0f, -2.125f+1.75f);
+		    goal.transform.position = new Vector3(17.5f, 0.0f, -2.125f+1.75f);		    
+		    break;
+		case 2:
+		    location = new Vector3(-17.5f, 0.0f, -2.125f+1.75f*2);
+		    goal.transform.position = new Vector3(17.5f, 0.0f, -2.125f+1.75f*2);
+		    break;
+		case 3:
+		    location = new Vector3(-17.5f, 0.0f, -2.125f+1.75f*3);
+		    goal.transform.position = new Vector3(17.5f, 0.0f, -2.125f+1.75f*3);
+		    break;
+		case 4:
+		    location = new Vector3(-17.5f+1.75f, 0.0f, -2.125f);
+		    goal.transform.position = new Vector3(17.5f-1.75f, 0.0f, -2.125f);
+			break;
+		case 5:
+		    location = new Vector3(-17.5f+1.75f, 0.0f, -2.125f+1.75f);
+		    goal.transform.position = new Vector3(17.5f-1.75f, 0.0f, -2.125f+1.75f);
+		    break;
+		case 6:
+		    location = new Vector3(-17.5f+1.75f, 0.0f, -2.125f+1.75f*2);
+		    goal.transform.position = new Vector3(17.5f-1.75f, 0.0f, -2.125f+1.75f*2);
+		    break;
+		case 7:
+		    location = new Vector3(-17.5f+1.75f, 0.0f, -2.125f+1.75f*3);
+		    goal.transform.position = new Vector3(17.5f-1.75f, 0.0f, -2.125f+1.75f*3);
+		    break;
+		case 8:
+		    location = new Vector3(2.125f, 0.0f, -17.5f);
+		    goal.transform.position = new Vector3(2.125f, 0.0f, 17.5f);
+		    break;
+		case 9:
+		    location = new Vector3(2.125f-1.75f, 0.0f, -17.5f);
+		    goal.transform.position = new Vector3(2.125f-1.75f, 0.0f, 17.5f);
+		    break;
+		case 10:
+		    location = new Vector3(2.125f-1.75f*2, 0.0f, -17.5f);
+		    goal.transform.position = new Vector3(2.125f-1.75f*2, 0.0f, 17.5f);
+		    break;
+		case 11:
+		    location = new Vector3(2.125f-1.75f*3, 0.0f, -17.5f);
+		    goal.transform.position = new Vector3(2.125f-1.75f*3, 0.0f, 17.5f);
+		    break;
+		case 12:
+		    location = new Vector3(2.125f, 0.0f, -17.5f-1.75f);
+		    goal.transform.position = new Vector3(2.125f, 0.0f, 17.5f+1.75f);
+		    break;
+		case 13:
+		    location = new Vector3(2.125f-1.75f*1, 0.0f, -17.5f-1.75f);
+		    goal.transform.position = new Vector3(2.125f-1.75f*1, 0.0f, 17.5f+1.75f);
+		    break;
+		case 14:
+		    location = new Vector3(2.125f-1.75f*2, 0.0f, -17.5f-1.75f);
+		    goal.transform.position = new Vector3(2.125f-1.75f*2, 0.0f, 17.5f+1.75f);
+		    break;
+		case 15:
+		    location = new Vector3(2.125f-1.75f*3, 0.0f, -17.5f-1.75f);
+		    goal.transform.position = new Vector3(2.125f-1.75f*3, 0.0f, 17.5f+1.75f);
+		    break;
+	    }
+		    
+	    clone.GetComponent<Renderer>().material.color = our_color;
+
+	    pose = Quaternion.Euler(0.0f, UnityEngine.Random.Range(0, 360), 0.0f);
+
+            goal.transform.localScale = new Vector3(1.0f, 1.0f, 1.0f);
+            goal.GetComponent<Renderer>().material.color = our_color;
+
+            clone.GetComponent<QAgent>().setGoal(goal);	    	    
+	}
+	else if(SCENARIO == "photoshoot")
+	{
+            goal = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            goal.name = "goal" + index.ToString();
+
+	    Color our_color = new Color(0.0f,0.0f,0.0f);
+	    
+	    switch(index)
+	    {
+		case 0:
+		    our_color = new Color(0.5f, 0.5f, 0.5f);
+		    location = new Vector3(6.0f, 0.0f, 4.0f);
+		    break;
+		case 1:
+		    our_color = new Color(0.5f, 0.5f, 0.5f);
+		    location = new Vector3(4.0f, 0.0f, 1.0f);
+		    break;
+		case 2:
+		    our_color = new Color(1.0f, 0.0f, 0.0f);
+		    location = new Vector3(-1.0f, 0.0f, 4.0f);
+		    break;
+		case 3:
+		    our_color = new Color(0.5f, 0.5f, 0.5f);
+		    location = new Vector3(3.0f, 0.0f, -3.0f);
+		    break;
+		case 4:
+		    our_color = new Color(0.5f, 0.5f, 0.5f);
+		    location = new Vector3(2.0f, 0.0f,7.0f);
+		    break;		    
+	    }
+            clone.GetComponent<Renderer>().material.color = our_color;
+
+	    pose = Quaternion.Euler(0.0f, UnityEngine.Random.Range(0, 360), 0.0f);
+
+            goal.transform.position = new Vector3(-Mathf.Cos(2*Mathf.PI*index/numOfWalkers)*square_dist, 0.5F, -Mathf.Sin(2*Mathf.PI*index/numOfWalkers)*square_dist);
+            goal.transform.localScale = new Vector3(2.0f, 2.0f, 2.0f);
+            goal.GetComponent<Renderer>().material.color = our_color;
+
+            clone.GetComponent<QAgent>().setGoal(goal);	    
+	}
 	else if (SCENARIO == "circle")
         {
             goal = GameObject.CreatePrimitive(PrimitiveType.Sphere);
@@ -323,22 +484,22 @@ public class PopulateScene : MonoBehaviour
                 clone.GetComponent<Renderer>().material.color = new Color(0.0f, 0.5f, 1.0f);
                 goal.GetComponent<Renderer>().material.color = new Color(0.0f, 0.5f, 1.0f);
 
-		location = new Vector3((index-numOfWalkers/2)*3.0f, 0, 10);
+		location = new Vector3(2.5f+(index-numOfWalkers/2)*3.0f, 0, 10);
 		pose = Quaternion.Euler(0.0f, 0.0f, 0.0f);
 
-                goal.transform.position = new Vector3((index-numOfWalkers/2)*3.0f, 0.0F, -10);
-                goal.transform.localScale = new Vector3(2.0f, 2.0f, 2.0f);
+                goal.transform.position = new Vector3(2.5f+(index-numOfWalkers/2)*3.0f, 0.0F, -15);
+                goal.transform.localScale = new Vector3(1.0f, 1.0f, 1.0f);
             }
             else
             {
                 clone.GetComponent<Renderer>().material.color = new Color(1.0f, 0.5f, 0.0f);
                 goal.GetComponent<Renderer>().material.color = new Color(1.0f, 0.5f, 0.0f);
 		
-                location = new Vector3((index-numOfWalkers/2-1.0f)*3.0f, 0, -10);
+                location = new Vector3(2.5f+(index-numOfWalkers/2-1.0f)*3.0f, 0, -15);
 		pose = Quaternion.Euler(0.0f, 180.0f, 0.0f);
 
-                goal.transform.position = new Vector3((index-numOfWalkers/2-1.0f)*3.0f, 0.0F, 10);
-                goal.transform.localScale = new Vector3(2.0f, 2.0f, 2.0f);
+                goal.transform.position = new Vector3(2.5f+(index-numOfWalkers/2-1.0f)*3.0f, 0.0F, 10);
+                goal.transform.localScale = new Vector3(1.0f, 1.0f, 1.0f);
             }
 
             clone.GetComponent<QAgent>().setGoal(goal);
@@ -347,11 +508,11 @@ public class PopulateScene : MonoBehaviour
         clone.GetComponent<QAgent>().setResetPose(location, pose);
 
         // draw PlaceCells state
-        if (VizPlaceCell && index == 0)
+        if (VizPlaceCell && index==2)
             clone.GetComponent<QAgent>().vizPlaceCell = true;
 
         // draw sector state
-        if (VizCollisionCells && index == 0)
+        if (VizCollisionCells && index == 2)
 	    clone.GetComponent<QAgent>().vizCollisionCells = true;
 
         // draw indicator reward
@@ -360,7 +521,7 @@ public class PopulateScene : MonoBehaviour
         else
             clone.GetComponent<QAgent>().turn_triangle_indicator(true);
 
-	if(!VizTrail)
+	if(VizTrail)
             clone.GetComponent<QAgent>().VizTrail = true;
 
         // set time-scale

@@ -42,9 +42,9 @@ class qbrain
   float _reward; double delta;    
 
   // action
-  int _action_size;
+  int _action_size, _direction_size, _speed_size;
 
-  float *_action_code;
+  float *_action_code_speed, *_action_code_direction;
   float *_action, *_action_prime;
     
   // actor traces/weights
@@ -69,7 +69,7 @@ class qbrain
 
   bool VERBOSE=false;
   
-  qbrain(int rank, string tag, int state_size=100, int action_size=8)
+  qbrain(int rank, string tag, int state_size=100, int action_size=36*5, int direction_size=36, int speed_size=5)
   {
     _tag = tag;
     _rank = rank;
@@ -96,10 +96,17 @@ class qbrain
       _action[action_idx] = 0.0;
 
     // population coding in action-space
-    _action_code = new float[_action_size];
-    for (int action_idx=0; action_idx<_action_size; action_idx++)
-      _action_code[action_idx] = 2.0*PI*float(action_idx)/float(_action_size);
-
+    _direction_size = direction_size;
+    _speed_size = speed_size;
+    
+    _action_code_direction = new float[direction_size];
+    _action_code_speed = new float[speed_size];
+    for (int direction_idx=0; direction_idx<direction_size; direction_idx++)
+      _action_code_direction[direction_idx] = 2.0*PI*float(direction_idx)/float(direction_size);
+    
+    for (int speed_idx=0; speed_idx<speed_size; speed_idx++)
+      _action_code_speed[speed_idx] = float(speed_idx)/float(speed_size);
+    
     // initialize actor
     _actor_e.resize(_state_size);
     for (int state_idx=0; state_idx<_state_size; state_idx++)
@@ -133,7 +140,7 @@ class qbrain
 	_actor_w[state_idx].resize(_action_size,1);
 	for (int action_idx=0; action_idx<_action_size; action_idx++)
 	{
-	  _actor_w[state_idx][action_idx] = (float)rand()/RAND_MAX/1.0;
+	  _actor_w[state_idx][action_idx] = 0.0; //(float)rand()/RAND_MAX/0.1;
 	}
       }
     }
@@ -174,14 +181,14 @@ class qbrain
 
   void parse_param()
   {
-    _alpha   = 0.1;  // learning rate
+    _alpha   = 0.05;  // learning rate
     _rho     = 1.00;  // importance-sampling 
     _lambda  = 0.60;  // eligibility parameter 0.8
 
     _epsilon = 0.80;  // epsilon-greedy
     //_omega   = 0.10;  // softmax-temp
     
-    _gamma   = 0.95;  // temporal-decay rate
+    _gamma   = 0.8;  // temporal-decay rate
   }
 
   void reset()
@@ -335,8 +342,9 @@ class qbrain
     return policy;
   }
 
-  void action_to_motor(float* action, float* motor_msg)
+  void action_to_motor_popcode(float* action, float* motor_msg)
   {
+    /*
     float velocity_x=0.0, velocity_y=0.0;
 
     for(int action_idx=0; action_idx<_action_size; action_idx++)
@@ -351,6 +359,28 @@ class qbrain
       motor_msg[0] = atan2(velocity_y,velocity_x);
 
     motor_msg[1] = sqrt(velocity_x*velocity_x+velocity_y*velocity_y);
+    */
+  }
+
+  void policy_to_motor(double* pi, float* action, float* motor_msg)
+  {
+    float rand_prob = (float)rand()/RAND_MAX, pi_bucket = 0.0;
+
+    for(int action_idx=0; action_idx<_action_size; action_idx++)
+      action[action_idx] = 0.0;
+
+    for(int action_idx=0; action_idx<_action_size; action_idx++)
+    {
+      pi_bucket += pi[action_idx];
+
+      if(rand_prob <= pi_bucket)
+      {
+	motor_msg[0] = _action_code_direction[action_idx%_direction_size];
+	motor_msg[1] = _action_code_speed[action_idx/_direction_size];
+	action[action_idx] = 1.0;
+	break;
+      }
+    }
   }
 
   float get_rpe()

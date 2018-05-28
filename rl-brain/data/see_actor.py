@@ -55,9 +55,9 @@ def create_patches(Q,ax):
     return patches        
 
 if(tag=="goal"):
-    state_size_x = 15; state_size_y = 15; action_size = 8;
+    state_size_x = 15; state_size_y = 15; action_size = 36;
 else:
-    state_size_x = 100; state_size_y = 10; action_size=8;
+    state_size_x = 100; state_size_y = 10; action_size = 36;
 
 
 fig = plt.figure(figsize=(10,8))
@@ -65,9 +65,9 @@ fig = plt.figure(figsize=(10,8))
 ax1 = plt.subplot(1,1,1)
 ax1.set_xticks(()); ax1.set_yticks(());
 
-VIEW_WEIGHTS = True;
+VIEW_WEIGHTS = False;
 VIEW_QUIVER = False;
-VIEW_DYNAMICS = False
+VIEW_DYNAMICS = True
 
 if VIEW_QUIVER:
     
@@ -104,12 +104,16 @@ if VIEW_DYNAMICS:
     
     Q = qtable.reshape(int(len(qtable)/state_size_x/state_size_y/action_size),state_size_x*state_size_y*action_size)
 
-    grad_Q = np.diff(Q,axis=0)
-    print("agent:"+ str(agent) +" #updates:",grad_Q.shape[0], "sum(Q)=", Q.sum())
+    print("agent:"+ str(agent) +" #updates:",Q.shape[0], "size(Q)=", Q.shape, "sum(Q)=", Q.sum())
+
+    Qavg = np.mean(Q,1)
+    Qup = np.var(Q,1);   
     
     im = plt.subplot(1,1,1)
-    plt.plot(grad_Q,linewidth=1.5,alpha=0.5)
-    plt.xlabel('place cell index'); plt.ylabel('action index');
+    plt.plot(Qavg,linewidth=1.5,alpha=0.5)
+    plt.plot(Qavg+Qup,linewidth=1.5,alpha=0.2)
+    plt.plot(Qavg-Qup,linewidth=1.5,alpha=0.2)
+    plt.xlabel('time'); plt.ylabel('Q');
     plt.title("Agent "+str(agent))
     
     plt.suptitle("Q-values (learning)\nwith "+str(NUM_AGENTS)+" agents")
