@@ -23,7 +23,7 @@ public class DrawEllipse : MonoBehaviour {
 	    transform.parent = parent.transform;
 
 	transform.localPosition = Vector3.zero;
-	transform.localRotation = Quaternion.Euler(90, 0, 0);
+	transform.localRotation = Quaternion.Euler(90, 0, 90);
 	
         // Update the mesh relative to the transform
         _meshFilter.mesh = EllipseMesh(sigmaR, sigmaTheta, center, fillColor);

@@ -59,7 +59,7 @@ void geocentricate(double* pi, int direction_size, int speed_size, int theta)
   for(int action_idx=0; action_idx<direction_size*speed_size; action_idx++)
   {
     pi_old[action_idx]=pi[action_idx];
-    pi[action_idx]=0;
+    pi[action_idx]= 0;
   }
 
   int heading_direction = bearing_to_action(theta, direction_size);
@@ -75,22 +75,15 @@ void geocentricate(double* pi, int direction_size, int speed_size, int theta)
 }
 
 /* transform action (in global action-space) to local action (along D-axis by -theta) */
-float* egocentricate(float* action, int direction_size, int speed_size, int theta)
+void egocentricate(float* action_ego, float* action, int direction_size, int speed_size, int theta)
 {
-  float* action_ego = new float[direction_size*speed_size];
-  
-  for(int action_idx=0; action_idx<direction_size*speed_size; action_idx++)
-    action_ego[action_idx]=0.0;
-
-  int heading_direction = bearing_to_action(theta, direction_size*speed_size);  
+  int heading_direction = bearing_to_action(theta, direction_size);  
   for(int speed_idx=0; speed_idx<speed_size; speed_idx++)
   {
     for(int direction_idx=0; direction_idx<direction_size; direction_idx++)
     {
-      int action_ego_idx = speed_idx*direction_size + (direction_idx%direction_size - heading_direction + direction_size)%direction_size;	
+      int action_ego_idx = speed_idx*direction_size + (direction_size+direction_idx-heading_direction)%direction_size;	
       action_ego[speed_idx*direction_size + direction_idx] = action[action_ego_idx];
     }
-  }
-  
-  return action_ego;
+  }  
 }

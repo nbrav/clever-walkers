@@ -1,12 +1,10 @@
 #define _VERBOSE_UDP false
 #define _VERBOSE_AS true
 #define LEARNING true
-#define SOFTMAX true
 
 #define PORT 7890
-#define BUFSIZE 2048
 #define CLOCK_PRECISION 1E9
-#define HALTING_ACTION 4
+#define HALTING_ACTION 18
 
 #define UNITY_IP "0.0.0.0"  // enter your PC IP here
 #define THIS_IP "127.0.0.1" // use if running Brain & Unity in same system
@@ -50,41 +48,51 @@ int main(int argc, char **argv)
 	srand((unsigned)time(NULL)+_rank);
 
 	/* create variables for master thread */
-	
-	int* phi_goal_idx; float* phi_goal_val; int num_phi_goal=0; // Allocentric state 
-	int* phi_goal_idx_prev; float* phi_goal_val_prev; int num_phi_goal_prev=0; // Allocentric state 
-	
-	int* phi_collide_idx; float* phi_collide_val; int num_phi_collide=0; // Egocentric state
-	int* phi_collide_idx_prev; float* phi_collide_val_prev; int num_phi_collide_prev=0; // Egocentric state
 
-	int direction_size=36, speed_size=5;
-	float *action = new float[direction_size*speed_size], *action_previous = new float[direction_size*speed_size], *action_collide = new float[direction_size*speed_size];	
-	for(int action_idx=0; action_idx<direction_size*speed_size; action_idx++)
-	  action[action_idx]=0.0;
+	// allo-centric state (sparse-coding)
+	int* phi_goal_idx; float* phi_goal_val; int num_phi_goal=0;
+	int* phi_goal_idx_prev; float* phi_goal_val_prev; int num_phi_goal_prev=0;
 	
-	double *policy_goal, *policy_collide; double* policy_behaviour = new double[direction_size*speed_size];
-	
-	int timestep=0; float reward_goal=0.0, reward_collide=0.0;		
-	float sensor_msg[1000];
-	float motor_msg[2];  // (direction,speed)
-	
-	float heading_direction = 0.0;
+	phi_goal_idx = new int[225]; phi_goal_val = new float[225];
+	phi_goal_idx_prev = new int[225]; phi_goal_val_prev = new float[225];
 
-	phi_goal_idx = new int[100]; phi_goal_val = new float[100];
-	phi_goal_idx_prev = new int[100]; phi_goal_val_prev = new float[100];
+	// ego-centric state (sparse-coding)
+	int* phi_collide_idx; float* phi_collide_val; int num_phi_collide=0;
+	int* phi_collide_idx_prev; float* phi_collide_val_prev; int num_phi_collide_prev=0;
+
 	phi_collide_idx = new int[1000]; phi_collide_val = new float[1000];
 	phi_collide_idx_prev = new int[1000]; phi_collide_val_prev = new float[1000];
+
+	// action coding
+	int direction_size=8, speed_size=3;
+	float *action = new float[direction_size*speed_size], *action_previous = new float[direction_size*speed_size], *action_collide = new float[direction_size*speed_size];	
+	for(int action_idx=0; action_idx<direction_size*speed_size; action_idx++)
+	{
+	  action[action_idx]=0.0;
+	  action_previous[action_idx]=0.0;
+	}
+	
+	double *policy_goal, *policy_collide; double* policy_behaviour = new double[direction_size*speed_size];
+
+	// rewards
+	float reward_goal=0.0, reward_collide=0.0;
+
+	// message coding
+	float sensor_msg[1000];
+	float motor_msg[2];  // (direction,speed)	
+	float heading_direction = 0.0;
 	
 	/* create (multi-)brain objects */
 	
-	qbrain brain_goal(_rank,"goal",225,direction_size*speed_size); // allocentric
-	qbrain brain_collide(_rank,"collide",1000,direction_size*speed_size); // egocentric
+	qbrain brain_goal(_rank,"goal",225,direction_size*speed_size,direction_size,speed_size); // allocentric
+	qbrain brain_collide(_rank,"collide",1000,direction_size*speed_size,direction_size,speed_size); // egocentric
 
 	/* trial variables */
 	
+	std::srand (time(NULL)+_rank);
+	int timestep=0;
 	float reward_goal_trial=0, reward_collide_trial=0;
 	float temperature = 1.0f;
-	std::srand (time(NULL)+_rank);
 	int HALTING=false;
 
 	/* setting-up socket material*/
@@ -94,7 +102,6 @@ int main(int argc, char **argv)
 	int recvlen=-1;			/* # bytes received */	
 	int fd;				/* our socket */ /* music-osc: udpSocket */       
 	int msgcnt = 0;			/* count # of messages we received */
-	char buf[BUFSIZE];	/* receive buffer */
 	
         /* creating socket for each rank */
 
@@ -125,14 +132,12 @@ int main(int argc, char **argv)
 	// >---------------------------------------------------> //
 	// ^                    master loop                    v //
 	// <---------------------------------------------------< //
-	for (;timestep<Tr;) //timestep<Tr+Te
+	for (;;) //timestep<Tr+Te
 	{
-	  // -------------------------------------------------------------
 	  // ---------------------send action-----------------------------
 	  if (sendto(fd, &motor_msg[0], sizeof(float)*2, 0, (struct sockaddr *)&remaddr, addrlen) < 0) perror("sendto");
 	    
-	  // -------------------------------------------------------------
-	  // ------receive observations (K+2,s,phi_0,..,phi_K,reward)-----
+	  // -----------------------receive observations------------------
 	  for(;;)
 	  {
 	    recvlen = recvfrom(fd, sensor_msg, sizeof(float)*1000, 0, (struct sockaddr *)&remaddr, &addrlen);
@@ -168,7 +173,7 @@ int main(int argc, char **argv)
 	  }
 
 	  // debug printing
-	  if(_VERBOSE_UDP && _master) 
+	  if(_VERBOSE_UDP && _master && false) 
 	  {
 	    printf("\n\n\nRAW_UDP [AgIdx:%d T:%d] ",_rank,timestep);
 	    
@@ -184,11 +189,11 @@ int main(int argc, char **argv)
 	  // {K+4, #phi_goal, phi_goal_idx0, phi_goal_val0, phi_goal_idx1, phi_goal_val1,.., phi_collide_0,..,phi_collide_{K-1},reward_goal,reward_collide,heading_dir}
 	  int sensor_msg_idx = 1;
 
-	  if(_VERBOSE_UDP && _master) cout<<"\n\n";
+	  if(_VERBOSE_UDP && _master) cout<<"\n";
 	  
 	  // Extract allocentric state
 	  num_phi_goal = int(sensor_msg[sensor_msg_idx++]);	  
-	  if(_VERBOSE_UDP && _master) cout<<"#S="<<num_phi_goal<<" (";
+	  if(_VERBOSE_UDP && _master) cout<<"\nRANK:"<<_rank<<"\n#S="<<num_phi_goal<<" (";
 	  for(int phi_idx=0; phi_idx<num_phi_goal; phi_idx++)
 	  {
 	    phi_goal_idx[phi_idx] = int(sensor_msg[sensor_msg_idx++]);
@@ -216,7 +221,7 @@ int main(int argc, char **argv)
 	  heading_direction = sensor_msg[int(sensor_msg_idx++)];
 
 	  if(_VERBOSE_UDP && _master)
-	    cout<<" R1:"<<reward_goal<<" R2:"<<reward_collide<<" HD:"<<heading_direction;
+	    cout<<" R1:"<<reward_goal<<" R2:"<<reward_collide<<" HD:"<<heading_direction<<" "<<sensor_msg_idx<<"?="<<sensor_msg[0]+1;
 
 	  // -------------------------------------------------------------
 	  // ----------------simulate the "Brain"-------------------------	  
@@ -228,18 +233,17 @@ int main(int argc, char **argv)
 	  geocentricate(policy_collide, direction_size, speed_size, heading_direction);
 
 	  // combine to behavioural policy
-	  action_selection(policy_behaviour, policy_goal, policy_collide, direction_size*speed_size, heading_direction, _master*_VERBOSE_AS);
+	  action_selection(policy_behaviour, policy_goal, policy_collide, action_previous, direction_size*speed_size, heading_direction, _master*_VERBOSE_AS);
 
-	  // GAIN POLICY BEHAVE
-	  //temperature = 10.0*(1-float(timestep)/Tr);
-	  //gain_policy(policy_behaviour,direction_size*speed_size, temperature);
+	  //gain_policy(policy_behaviour,direction_size*speed_size,5.0);
 
 	  // convert to action distribtions: find motor command (direction,speed) from action distributions
 	  brain_goal.policy_to_motor(policy_behaviour,action,motor_msg);
-	  action_collide = egocentricate(action,direction_size,speed_size,heading_direction); 
-  
-	  //for(int action_idx=0; action_idx<direction_size*speed_size; action_idx++)
-	  //action_previous[action_idx] = action[action_idx];
+	  egocentricate(action_collide,action,direction_size,speed_size,heading_direction); 
+
+	  // history action module
+	  for(int action_idx=0; action_idx<direction_size*speed_size; action_idx++)
+	    action_previous[action_idx] = action[action_idx];
 
 	  // debugging
 	  if(_master*_VERBOSE_AS*(timestep%1000>0 && timestep%1000<10))
@@ -249,6 +253,16 @@ int main(int argc, char **argv)
 	    print_policy(policy_collide,direction_size*speed_size,"coll");  //KL(policy_collide,policy_behaviour,direction_size*speed_size);
 	    print_policy(policy_behaviour,direction_size*speed_size,"beha"); 
 	  }
+
+	  if(!_rank && false)
+	  {
+	    printf("\nA_t:");
+	    for(int action_idx=0; action_idx<24; action_idx++)
+	      printf("%0.1f,",action[action_idx]);
+	    printf("\nA_c:");
+	    for(int action_idx=0; action_idx<24; action_idx++)
+	      printf("%0.1f,",action_collide[action_idx]);
+	  }
 	  
 	  // w += alpha*(r'+gamma*q(s',a')-q(s,a))
 	  if(LEARNING)
@@ -257,7 +271,7 @@ int main(int argc, char **argv)
 	    //brain_collide.update_importance_samples(policy_collide, policy_behaviour, action);
 		  
 	    brain_goal.advance_timestep(num_phi_goal,phi_goal_idx,phi_goal_val,action,reward_goal,timestep);
-	    brain_collide.advance_timestep(num_phi_collide,phi_collide_idx,phi_collide_val,action_collide,reward_collide,timestep);
+	    brain_collide.advance_timestep(num_phi_collide,phi_collide_idx,phi_collide_val,action_collide,-reward_collide,timestep);
 	  }
 
 	  // s = s' 

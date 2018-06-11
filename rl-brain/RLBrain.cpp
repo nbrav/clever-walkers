@@ -140,7 +140,7 @@ class qbrain
 	_actor_w[state_idx].resize(_action_size,1);
 	for (int action_idx=0; action_idx<_action_size; action_idx++)
 	{
-	  _actor_w[state_idx][action_idx] = 0.0; //(float)rand()/RAND_MAX/0.1;
+	  _actor_w[state_idx][action_idx] = ((float)rand()/RAND_MAX-0.5)/5.0;
 	}
       }
     }
@@ -164,7 +164,7 @@ class qbrain
     {
       _critic_w.resize(_state_size);
       for (int state_idx=0; state_idx<_state_size; state_idx++)
-	_critic_w[state_idx] = 0.0; //(float)rand()/RAND_MAX/10.0;
+	_critic_w[state_idx] = ((float)rand()/RAND_MAX-0.5)/5.0;
     }
     
     _reward = 0.0;
@@ -181,9 +181,9 @@ class qbrain
 
   void parse_param()
   {
-    _alpha   = 0.05;  // learning rate
+    _alpha   = 0.01;  // learning rate
     _rho     = 1.00;  // importance-sampling 
-    _lambda  = 0.60;  // eligibility parameter 0.8
+    _lambda  = 0.50;  // eligibility parameter 0.8
 
     _epsilon = 0.80;  // epsilon-greedy
     //_omega   = 0.10;  // softmax-temp
@@ -290,8 +290,8 @@ class qbrain
     {
       _phi_s[phi_s_idx[idx]]=phi_s_val[idx]/phi_s_sum;
 
-      if(_phi_s_idx[idx]!=_phi_s_idx[idx]) cerr<<"\n===NANs in PHI_S_IDX!==="<<_tag;    
-      if(_phi_s_val[idx]!=_phi_s_val[idx]) cerr<<"\n===NANs in PHI_S_VAL!==="<<_tag;
+      if(_phi_s_idx[idx]!=_phi_s_idx[idx]) {cerr<<"\n===NANs in PHI_S_IDX!==="<<_tag; exit(0);  }
+      if(_phi_s_val[idx]!=_phi_s_val[idx]) {cerr<<"\n===NANs in PHI_S_VAL!==="<<_tag; exit(0);  }
     }
   }
 
@@ -306,10 +306,6 @@ class qbrain
     float* h = new float[_action_size];  float hmax = std::numeric_limits<float>::min();
     double* policy = new double[_action_size]; double policy_sum = 0.0;
 
-    for(int idx=0; idx<num_phi_s; idx++)
-      if(_phi_s_val[idx]!=_phi_s_val[idx])
-	cerr<<"\n===NANs in PHI_S===";
-
     // h(A)=0
     for(int action_idx=0; action_idx<_action_size; action_idx++)
       h[action_idx] = 0.0;    
@@ -318,10 +314,17 @@ class qbrain
     for(int idx=0; idx<num_phi_s && phi_s_idx[idx]<_state_size; idx++)
       for(int action_idx=0; action_idx<_action_size; action_idx++)
       {
+	if(isnan(_phi_s_val[idx]) || isinf(_phi_s_val[idx]))
+	  cerr<<"\n===NANs in PHI_S===";
+
+	//if(_tag=="collide")
+	//  cout<<"\n"<<_actor_w[phi_s_idx[idx]][action_idx]<<","<<_phi_s_val[idx];
+	
 	h[action_idx] += _actor_w[phi_s_idx[idx]][action_idx] * _phi_s_val[idx];
 	hmax = (h[action_idx]>hmax)?h[action_idx]:hmax;
 
-	if(h[action_idx]!=h[action_idx]) cerr<<"\nNANs in Q_"<<_tag;
+	if(isnan(h[action_idx]) || isinf(h[action_idx]))
+	  cerr<<"\nNANs in Q_"<<_tag;
       }
 
     for(int action_idx=0; action_idx<_action_size; action_idx++)
@@ -329,16 +332,42 @@ class qbrain
       policy[action_idx] = exp((h[action_idx]-hmax));
       policy_sum += policy[action_idx];
 
-      if(policy[action_idx]!=policy[action_idx]) cerr<<"\n===NANs in PI_i!==="<<_tag;
+      if(isnan(policy[action_idx]) || isinf(policy[action_idx]))
+	cerr<<"\n===NANs in PI_i!==="<<_tag;
+
+      /*for(int idx=0; idx<num_phi_s && phi_s_idx[idx]<_state_size; idx++)
+	  for(int action_idx=0; action_idx<_action_size; action_idx++)
+	    cout<<" W["<<_actor_w[phi_s_idx[idx]][action_idx]<<"]";
+      */
     }
 
-    if(policy_sum==0)
-      policy_sum=1.0;
+    // DEBUGINNG
+    /*float sigma = 1.0f;
+    if(_tag=="goal")
+    {
+      policy_sum = 0.0;
+      for(int action_idx=0; action_idx<_action_size; action_idx++)
+      {
+	if(_rank<4)
+	  policy[action_idx] = exp(-(action_idx%8-4)*(action_idx%8-4)*2.0/sigma/sigma);
+	else
+	  policy[action_idx] = exp(-(action_idx%8-0)*(action_idx%8-0)*2.0/sigma/sigma);
+	policy_sum += policy[action_idx];
+      }
+      }*/
 
-    for(int action_idx=0; action_idx<_action_size; action_idx++)
-      policy[action_idx] /= policy_sum;
+    if(policy_sum==0)
+    {
+      if(_num_phi_s != 0) cout<<"ZERO-SUM '"<<_tag<<"'POLICY!";
+      for(int action_idx=0; action_idx<_action_size; action_idx++)
+	policy[action_idx] = 1.0/float(_action_size);
+    }
+    else
+      for(int action_idx=0; action_idx<_action_size; action_idx++)
+	policy[action_idx] /= policy_sum;
 
     delete[] h;
+
     return policy;
   }
 
@@ -369,6 +398,7 @@ class qbrain
     for(int action_idx=0; action_idx<_action_size; action_idx++)
       action[action_idx] = 0.0;
 
+    // softmax
     for(int action_idx=0; action_idx<_action_size; action_idx++)
     {
       pi_bucket += pi[action_idx];
@@ -385,14 +415,31 @@ class qbrain
 
   float get_rpe()
   {
-    return _reward
+    float delta =  _reward
       + get_value(_num_phi_s_prime, _phi_s_prime_idx, _phi_s_prime_val)*_gamma
       - get_value(_num_phi_s, _phi_s_idx, _phi_s_val);
+
+    if(isinf(delta) || isnan(delta))
+    {
+      cerr<<"R IS INF/NAN!"<<_reward<<" "<<get_value(_num_phi_s_prime, _phi_s_prime_idx, _phi_s_prime_val)*_gamma<<" "<<get_value(_num_phi_s, _phi_s_idx, _phi_s_val);
+      cout<<"\n[";
+      for(int idx=0; idx<_num_phi_s && _phi_s_idx[idx]<_state_size; idx++)
+	cout<<"{"<<idx<<":"<<_phi_s_idx[idx]<<","<<_phi_s_val[idx]<<"},";
+      cout<<"]\n[";
+      for(int idx=0; idx<_num_phi_s_prime && _phi_s_prime_idx[idx]<_state_size; idx++)
+	cout<<"{"<<idx<<":"<<_phi_s_prime_idx[idx]<<","<<_phi_s_prime_val[idx]<<"},";
+      cout<<"]";
+      fflush(stdout);
+
+      delta = 0.0;
+    }      
+    
+    return delta;
   }
   
   /*-------experimental update rules ----------*/
 
-  void update_importance_samples(double* policy_our, double* policy_behaviour, int a_t)
+  /*void update_importance_samples(double* policy_our, double* policy_behaviour, int a_t)
   {
     float _rho_t = 0;
     
@@ -414,7 +461,7 @@ class qbrain
 	grad_H += _phi_s_val[idx]*(1.0/_action_size-policy[action_idx]);
 
     return grad_H;
-  }
+   }*/
 
   /*------------- Update rules ----------*/
   
@@ -435,8 +482,29 @@ class qbrain
     // weight consolidation
     for(int state_idx=0; state_idx<_state_size; state_idx++)
       for(int action_idx=0; action_idx<_action_size; action_idx++)
+      {
 	_actor_w[state_idx][action_idx] += _alpha*delta*_actor_e[state_idx][action_idx]*_rho; //+ grad_entropy(policy)
 
+	if(isnan(_actor_w[state_idx][action_idx]) && isinf(_actor_w[state_idx][action_idx]))
+	  cerr<<"NANs in w";
+      }
+
+    /*if(!_rank && _tag=="collide")
+    {
+      printf("\n{AGIDX:%d T:%d ",_rank,_time);
+      printf("S:(");
+      for(int idx=0; idx<_num_phi_s; idx++)
+	printf("[%d,%0.1f],",_phi_s_idx[idx],_phi_s_val[idx]);
+      printf(")");
+      for(int action_idx=0; action_idx<_action_size; action_idx++)
+      if(_action[action_idx]!=0)
+      printf(",A:%d,%f -{%0.1f,%0.3f}-> ",action_idx,_action[action_idx],_reward,delta);
+      printf("S':(");
+      for(int idx=0; idx<_num_phi_s_prime; idx++)
+	printf("[%d,%0.1f],",_phi_s_prime_idx[idx],_phi_s_prime_val[idx]);
+      printf("),A':?}");
+      }*/
+    
     delete[] policy;
   }
 
@@ -449,7 +517,12 @@ class qbrain
       _critic_e[_phi_s_idx[idx]] += _gamma * _phi_s_val[idx];
     
     for (int state_idx=0; state_idx<_state_size; state_idx++)
+    {
       _critic_w[state_idx] += _alpha * delta * _critic_e[state_idx] * _rho;
+
+      if(_critic_w[state_idx]!=_critic_w[state_idx])
+	cerr<<"NANs in v";
+    }
   }
 
   float get_value(int num_phi_s, int* phi_s_idx, float* phi_s_val)
@@ -458,7 +531,12 @@ class qbrain
 
     // q_cap(s,a) = sum_i w_i*phi_s_i(s,a)
     for(int idx=0; idx<num_phi_s; idx++)
+    {
+      if(_critic_w[phi_s_idx[idx]]!=_critic_w[phi_s_idx[idx]])
+	cerr<<"NANs in RPE";
+
       _value += _critic_w[phi_s_idx[idx]]*phi_s_val[idx];
+    }
     
     return _value;
   }
@@ -473,10 +551,7 @@ class qbrain
 
     _reward = reward;
     _time = time;
-    _num_phi_s_prime = num_phi_s_prime; _phi_s_prime_idx = phi_s_prime_idx;_phi_s_prime_val = phi_s_prime_val;
-    _action_prime = action_prime;
-    _reward = reward;
-
+    
     if(_time%1000==0)
     {
       actor_log();
