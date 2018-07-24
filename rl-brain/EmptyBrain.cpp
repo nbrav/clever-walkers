@@ -1,11 +1,11 @@
 #define _VERBOSE_UDP false
-#define _VERBOSE_AS true
+#define _VERBOSE_AS false
+
 #define LEARNING true
 
 #define PORT 7890
 #define CLOCK_PRECISION 1E9
 #define HALTING_ACTION 18
-
 #define UNITY_IP "0.0.0.0"  // enter your PC IP here
 #define THIS_IP "127.0.0.1" // use if running Brain & Unity in same system
 
@@ -65,7 +65,15 @@ int main(int argc, char **argv)
 
 	// action coding
 	int direction_size=8, speed_size=3;
-	float *action = new float[direction_size*speed_size], *action_previous = new float[direction_size*speed_size], *action_collide = new float[direction_size*speed_size];	
+
+	float *action = new float[direction_size*speed_size],
+	  *action_previous = new float[direction_size*speed_size],
+	  *action_collide = new float[direction_size*speed_size];	
+
+	float action_angle = 0.0,
+	  action_previous_angle = 0.0f,
+	  action_collide_angle = 0.0;
+	
 	for(int action_idx=0; action_idx<direction_size*speed_size; action_idx++)
 	{
 	  action[action_idx]=0.0;
@@ -118,17 +126,19 @@ int main(int argc, char **argv)
 	  fprintf(stderr, "inet_aton() failed\n");
 	  exit(1);
 	}
-
+	
 	// gearing up brains
 	
-	brain_goal.reset(); 
-	brain_collide.reset();
+	brain_goal.reset(); brain_collide.reset();
 
 	if(_master) printf("\nGearing up \"%s\" system for %d rl-brain..\n", processor_name, _size);
 
 	// learning and trial meta-paremeters
+	
 	float Tr = 50*1000, Te = 100*1000;
 
+	motor_msg[0] = 0.0f; motor_msg[1] = 0.1f; // DEBUGINN
+	
 	// >---------------------------------------------------> //
 	// ^                    master loop                    v //
 	// <---------------------------------------------------< //
@@ -228,23 +238,23 @@ int main(int argc, char **argv)
 	  msgcnt++;
 
 	  // get policies from all modules
-	  policy_goal = brain_goal.get_policy(num_phi_goal,phi_goal_idx,phi_goal_val);
-	  policy_collide = brain_collide.get_policy(num_phi_collide,phi_collide_idx,phi_collide_val);
-	  geocentricate(policy_collide, direction_size, speed_size, heading_direction);
+	  //policy_goal = brain_goal.get_policy(num_phi_goal,phi_goal_idx,phi_goal_val);
+	  //policy_collide = brain_collide.get_policy(num_phi_collide,phi_collide_idx,phi_collide_val);
+	  //geocentricate(policy_collide, direction_size, speed_size, heading_direction);
 
 	  // combine to behavioural policy
-	  action_selection(policy_behaviour, policy_goal, policy_collide, action_previous, direction_size*speed_size, heading_direction, _master*_VERBOSE_AS);
+	  //action_selection(policy_behaviour, policy_goal, policy_collide, action_previous, direction_size*speed_size, heading_direction, _master*_VERBOSE_AS);
 
 	  //gain_policy(policy_behaviour,direction_size*speed_size,5.0);
 
 	  // convert to action distribtions: find motor command (direction,speed) from action distributions
-	  brain_goal.policy_to_motor(policy_behaviour,action,motor_msg);
-	  egocentricate(action_collide,action,direction_size,speed_size,heading_direction); 
+	  brain_goal.get_motor_msg(motor_msg);
+	  //egocentricate(action_collide,action,direction_size,speed_size,heading_direction); 
 
 	  // history action module
-	  for(int action_idx=0; action_idx<direction_size*speed_size; action_idx++)
-	    action_previous[action_idx] = action[action_idx];
-
+	  //for(int action_idx=0; action_idx<direction_size*speed_size; action_idx++)
+	  // action_previous[action_idx] = action[action_idx];
+	  
 	  // debugging
 	  if(_master*_VERBOSE_AS*(timestep%1000>0 && timestep%1000<10))
 	  {
@@ -271,7 +281,7 @@ int main(int argc, char **argv)
 	    //brain_collide.update_importance_samples(policy_collide, policy_behaviour, action);
 		  
 	    brain_goal.advance_timestep(num_phi_goal,phi_goal_idx,phi_goal_val,action,reward_goal,timestep);
-	    brain_collide.advance_timestep(num_phi_collide,phi_collide_idx,phi_collide_val,action_collide,-reward_collide,timestep);
+	    //brain_collide.advance_timestep(num_phi_collide,phi_collide_idx,phi_collide_val,action_collide,-reward_collide,timestep);
 	  }
 
 	  // s = s' 
@@ -279,13 +289,13 @@ int main(int argc, char **argv)
 	  brain_collide.set_state(num_phi_collide, phi_collide_idx, phi_collide_val);
 
 	  // a = a'
-	  brain_goal.set_action(action);
-	  brain_collide.set_action(action_collide);
+	  brain_goal.set_action(action, motor_msg[0]);
+	  //brain_collide.set_action(action_collide);
 	  
 	  timestep++;
 
 	  if(_master && msgcnt%1000==1)
-	    printf("\n*[t:%d,temp=%f]",timestep,temperature); 
+	    printf("\n*[t:%d,temp=%f]",timestep,temperature);
 	}
 	MPI_Finalize();
 }

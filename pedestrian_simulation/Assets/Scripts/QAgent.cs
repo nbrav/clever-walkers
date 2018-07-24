@@ -52,8 +52,8 @@ public class QAgent : MonoBehaviour
     ShowCollision show_collision;
 
     // whatever this is for..
-    [SerializeField]
-    GameObject dummyNavMeshAgent;
+    //[SerializeField]
+    //GameObject dummyNavMeshAgent;
 
     Vector3 defaultLocation;
     Quaternion defaultPose;
@@ -61,31 +61,21 @@ public class QAgent : MonoBehaviour
 
     /* timing setup */
 
-    int frame_rate = 30;
-    float time_scale = 1.0F;
-    float time_per_update;
-    float trial_duration = 30.0F;
-    int trial_elasped = 0; //in sec  
-
-    int FixedUpdateIndex = 0;
-    int UpdateIndex = 0;
+    //float time_scale = 1.0F;
 
     /* velocity component */
+    
     Vector3 position_previous;
 
     /* agent simulation details */
 
     float AGENT_HEIGHT = 0.0f; // to set-up raycast visuals 
     float RAYCAST_INTERVAL = Mathf.Deg2Rad*5.0f;
-
     public Color thisColor = new Color(0.5F, 0.5F, 0.5F, 0.5F);
  
     // Set rate
     void Awake()
     {
-        Application.targetFrameRate = frame_rate;
-        Screen.fullScreen = true;
-
         /* visualize egocentric states */
 
         Transform[] trans = this.gameObject.GetComponentsInChildren<Transform>(true);
@@ -214,20 +204,15 @@ public class QAgent : MonoBehaviour
         defaultPose = pose;
     }
 
-    public void setTimeScale(float global_time_scale)
+    /*public void setTimeScale(float global_time_scale)
     {
         time_scale = global_time_scale;
-    }
+    }*/
 
-    public void setTimePerUpdate(float global_time_per_update)
-    {
-        time_per_update = global_time_per_update;
-    }
-
-    public void setDummyAgentPrefab(GameObject newPref)
+    /*public void setDummyAgentPrefab(GameObject newPref)
     {
         dummyNavMeshAgent = newPref;
-    }
+    }*/
 
     public void setGoal(GameObject goal)
     {
@@ -238,15 +223,19 @@ public class QAgent : MonoBehaviour
                              motor system
     ---------------------------------------------------------------*/
 
-    public void set_udp(float[] motor_command)
+    public void set_udp(float[] motor_command, bool pause)
     {
-	do_jump_action(motor_command[0]*180.0f/Mathf.PI, motor_command[1]);
+	if(pause)
+	    do_jump_action(0.0f, 0.0f);
+	else    
+	    do_jump_action(motor_command[0]*180.0f/Mathf.PI, motor_command[1]);
     }
 
     // instantaneous translation+rotation
     void do_jump_action(float action_angle, float action_speed)
     {
         Vector3 ray_origin = transform.position;
+
         transform.rotation = Quaternion.Euler(0.0f, action_angle, 0.0f); //global rotate 	
 
         Vector3 next_position = gameObject.GetComponent<Rigidbody>().position + gameObject.transform.forward * (action_speed);
@@ -259,13 +248,6 @@ public class QAgent : MonoBehaviour
         // visualize trail
         Vector3 ray_vector = next_position;
         if(VizTrail) DrawLine(ray_origin, ray_vector, thisColor, 25);
-
-	//(this.gameObject.name=="agent0"
-	//|| this.gameObject.name=="agent3"
-	//		|| this.gameObject.name=="agent5"
-	//		|| this.gameObject.name=="agent10"
-	//		|| this.gameObject.name=="agent14"
-	//		)
     }
 
     /*---------------------------------------------------------------
@@ -632,10 +614,10 @@ public class QAgent : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        float avgFrameRate = Time.frameCount / Time.time;
+        //float avgFrameRate = Time.frameCount / Time.time;
 
-        Application.targetFrameRate = frame_rate;
-        Time.timeScale = time_scale;
+        //Application.targetFrameRate = frame_rate;
+        //Time.timeScale = time_scale;
     }
 
     void FixedUpdate()

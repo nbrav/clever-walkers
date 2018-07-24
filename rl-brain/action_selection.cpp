@@ -81,12 +81,12 @@ void action_selection (double* policy_behaviour, double* policy_goal, double* po
   {
     policy_behaviour[action_idx] = 1;//pow(policy_prev[action_idx];
     policy_behaviour[action_idx] *= policy_goal[action_idx];
-    policy_behaviour[action_idx] *= policy_prev[action_idx];
+    //policy_behaviour[action_idx] *= policy_prev[action_idx];
 
-    if(policy_collide[action_idx] != 0)
+    /*if(policy_collide[action_idx] != 0)
       policy_behaviour[action_idx] /= policy_collide[action_idx];
     else
-      policy_behaviour[action_idx] = 0;
+      policy_behaviour[action_idx] = 0;*/
   }
 
   // compute and normalize pi_final
