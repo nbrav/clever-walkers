@@ -34,7 +34,7 @@ void print_policy(double* pi, int pi_size, string name)
 {
   cout<<"\n"<<name<<"[";
   for(int idx=0; idx<pi_size; idx++)
-    cout<<round(pi[idx]*100)/100<<","<<setw(7);
+    cout<<round(pi[idx]*100)/100<<","<<setw(4);
   cout<<"]";
 }
 

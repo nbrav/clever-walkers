@@ -50,19 +50,19 @@ class qbrain
   float *_action_code_speed, *_action_code_direction;
   float *_action, *_action_prime;
 
-  float _action_t=0.0;
+  float _action_t = 0.0;
   float _actor_mean = 0.0, _actor_std = 1.0;
     
   // actor traces/weights
-  std::vector<float> _actor_e;
-  std::vector<float> _actor_w; // {theta_mean, theta_std}
+  std::vector< std::vector<float> > _actor_e;
+  std::vector< std::vector<float> > _actor_w; // {theta_mean, theta_std}
 
   // critic traces/weights
   std::vector<float> _critic_e;
   std::vector<float> _critic_w;
 
   // convergence checker
-  std::vector<float> _retro_actor_w;
+  std::vector< std::vector<float> > _retro_actor_w;
   std::vector<float> _retro_critic_w;  
 
   // i/o files
@@ -110,14 +110,21 @@ class qbrain
     for (int direction_idx=0; direction_idx<direction_size; direction_idx++)
       _action_code_direction[direction_idx] = 2.0*PI*float(direction_idx)/float(direction_size);
     
-    for (int speed_idx=0; speed_idx<speed_size; speed_idx++)
-      _action_code_speed[speed_idx] = float(speed_idx)/float(speed_size);
+    //for (int speed_idx=0; speed_idx<speed_size; speed_idx++)
+    //  _action_code_speed[speed_idx] = float(speed_idx)/float(speed_size);
+    _action_code_speed[0] = 0.5f;
     
     // initialize actor
     _actor_e.resize(_state_size);
     for (int state_idx=0; state_idx<_state_size; state_idx++)
-      _actor_e[state_idx] = 0.0;
-    
+    {
+      _actor_e[state_idx].resize(_action_size,1);
+      for (int action_idx=0; action_idx<_action_size; action_idx++)
+      {
+	_actor_e[state_idx][action_idx] = 0.0;
+      }
+    }
+        
     std::ifstream fs(("./data/qvalue."+_tag+"."+std::to_string(_rank)+".log").c_str());
     if(fs.is_open())
     {
@@ -126,15 +133,23 @@ class qbrain
 
       _actor_w.resize(_state_size);
       for (int state_idx=0; state_idx<_state_size; state_idx++)
-	fread(&_actor_w[0], sizeof(float), _state_size, qvalue_infile);
+      {
+	_actor_w[state_idx].resize(_action_size);
+	fread(&_actor_w[state_idx][0], sizeof(float), _action_size, qvalue_infile);
+      }
+      fclose(qvalue_infile);   
     }
     else
     {
       _actor_w.resize(_state_size);
       for (int state_idx=0; state_idx<_state_size; state_idx++)
-	_actor_w[state_idx] = 0.0; 
-      //for (int state_idx=0; state_idx<_state_size; state_idx++)
-      // _actor_w[_state_size+state_idx] = ((float)rand()/RAND_MAX-0.5)/_state_size/2.0;
+      {
+	_actor_w[state_idx].resize(_action_size,1);
+	for (int action_idx=0; action_idx<_action_size; action_idx++)
+	{
+	  _actor_w[state_idx][action_idx] = (float)rand()/RAND_MAX; //((float)rand()/RAND_MAX-0.5)/5.0;
+	}
+      }
     }
     
     // initialize critic
@@ -173,7 +188,7 @@ class qbrain
 
   void parse_param()
   {
-    _alpha   = 0.01;  // learning rate
+    _alpha   = 0.05;  // learning rate
     _rho     = 1.00;  // importance-sampling 
     _lambda  = 0.50;  // eligibility parameter
     _epsilon = 0.80;  // epsilon-greedy    
@@ -193,7 +208,8 @@ class qbrain
 
     // reset actor_e
     for (int state_idx=0; state_idx<_state_size; state_idx++)
-      _actor_e[state_idx] = 0.0;
+      for (int action_idx=0; action_idx<_action_size; action_idx++)
+	_actor_e[state_idx][action_idx] = 0.0;
     
     // reset critic_e
     for (int state_idx=0; state_idx<_state_size; state_idx++)
@@ -233,7 +249,8 @@ class qbrain
   void actor_log()
   {    
     qvalue_outfile = fopen(("./data/qvalue."+_tag+"."+std::to_string(_rank)+".log").c_str(), "ab");
-    fwrite(&_actor_w, sizeof(float), _state_size, qvalue_outfile);
+    for (int state_idx=0; state_idx<_state_size; state_idx++)
+      fwrite(&_actor_w[state_idx][0], sizeof(float), _action_size, qvalue_outfile);
     fclose(qvalue_outfile);
   }
 
@@ -290,25 +307,29 @@ class qbrain
     _action_t = action_t;
   }
 
-  /*double* get_policy(int num_phi_s, int* phi_s_idx, float* phi_s_val)
+  double* get_policy(int num_phi_s, int* phi_s_idx, float* phi_s_val)
   {
     float* h = new float[_action_size];  float hmax = std::numeric_limits<float>::min();
     double* policy = new double[_action_size]; double policy_sum = 0.0;
 
+    // h(A)=0
+    for(int action_idx=0; action_idx<_action_size; action_idx++)
+      h[action_idx] = 0.0;
+    
     // forall a: h(s_t,A) = sum_i w_i*phi_s_i(s_t,A)
     for(int idx=0; idx<num_phi_s && phi_s_idx[idx]<_state_size; idx++)
-    {
-      if(isnan(_phi_s_val[idx]) || isinf(_phi_s_val[idx]))
-	cerr<<"\n===NANs in PHI_S===";
-      
-      _actor_w[phi_s_idx[idx]] * _phi_s_val[idx];
-      //hmax = (h[action_idx]>hmax)?h[action_idx]:hmax;
-      
-    }
+      for(int action_idx=0; action_idx<_action_size; action_idx++)
+      {
+	if(isnan(_phi_s_val[idx]) || isinf(_phi_s_val[idx]))
+	  cerr<<"\n===NANs in PHI_S===";
+	
+	h[action_idx] += _actor_w[phi_s_idx[idx]][action_idx] * _phi_s_val[idx];
+	hmax = (h[action_idx]>hmax)?h[action_idx]:hmax;      
+      }
 
     for(int action_idx=0; action_idx<_action_size; action_idx++)
     {
-      policy[action_idx] = exp((h[action_idx]-hmax));
+      policy[action_idx] = h[action_idx]; //exp((h[action_idx]-hmax));
       policy_sum += policy[action_idx];
 
       if(isnan(policy[action_idx]) || isinf(policy[action_idx]))
@@ -317,49 +338,31 @@ class qbrain
 
     if(policy_sum==0)
     {
-      if(_num_phi_s != 0) cout<<"ZERO-SUM '"<<_tag<<"'POLICY!";
+      //if(_num_phi_s != 0) cout<<"ZERO-SUM '"<<_tag<<"'POLICY!";
       for(int action_idx=0; action_idx<_action_size; action_idx++)
 	policy[action_idx] = 1.0/float(_action_size);
     }
     else
       for(int action_idx=0; action_idx<_action_size; action_idx++)
 	policy[action_idx] /= policy_sum;
-    
+
+    // DEBUGGER //
+    if(!_rank && false)
+    {
+      cout<<"\n\n=== S:";
+      for(int idx=0; idx<num_phi_s && phi_s_idx[idx]<_state_size; idx++)
+	cout<<"{"<<phi_s_idx[idx]<<","<<phi_s_val[idx]<<"}, ";
+      cout<<"\n    A:";
+      for(int action_idx=0; action_idx<_action_size; action_idx++)
+	cout<< std::fixed << std::setprecision(2) << policy[action_idx]<<",";
+      cout<<"";
+    }
+
     delete[] h;
     return policy;
-  }*/
-
-  void get_motor_msg_contGauss(float* motor_msg)
-  {
-    _actor_mean = 0.0;
-    for(int idx=0; idx<_num_phi_s && _phi_s_idx[idx]<_state_size; idx++)
-    {
-      _actor_mean += _actor_w[_phi_s_idx[idx]] * _phi_s_val[idx];
-
-      if(isinf(_phi_s_idx[idx]) || isnan(_phi_s_idx[idx])) cerr<<"\nBad phi(s)";
-      if(isinf(_phi_s_val[idx]) || isnan(_phi_s_val[idx])) cerr<<"\nBad phi(s)";
-      if(isinf(_actor_mean) || isnan(_actor_mean)) cerr<<"\nBad mu(s)";
-    }
-    
-    _actor_std = 0.0;
-    for(int idx=0; idx<_num_phi_s && _phi_s_idx[idx]<_state_size; idx++)
-    {
-      _actor_std += _actor_w[_state_size+_phi_s_idx[idx]] * _phi_s_val[idx];
-      if(isinf(_actor_std) || isnan(_actor_std)) cerr<<"\nBad std(s)";
-    }
-
-    seed = std::chrono::system_clock::now().time_since_epoch().count();
-    std::normal_distribution<double> distribution(_actor_mean,_actor_std);
-    std::default_random_engine generator(seed);
-
-    motor_msg[0] = fmod(distribution(generator)+PI,PI);
-    motor_msg[1] = 1.0;
-
-    if(!_rank)
-      cout<<"\nA: ["<<motor_msg[0]<<","<<motor_msg[1]<<"] ~ N("<<_actor_mean<<","<<_actor_std<<")";   
   }
 
-  void get_motor_msg(float* motor_msg)
+  /*void get_motor_msg_contGauss(float* motor_msg)
   {
     _actor_mean = 0.0;
     for(int idx=0; idx<_num_phi_s && _phi_s_idx[idx]<_state_size; idx++)
@@ -387,6 +390,41 @@ class qbrain
 
     if(!_rank)
       cout<<"\nA: ["<<motor_msg[0]<<","<<motor_msg[1]<<"] ~ N("<<_actor_mean<<","<<_actor_std<<")";   
+  }*/
+
+  void get_motor_msg(double* pi, float* action_t, float* motor_msg)
+  {
+    // SOFT-MAX action-selection
+    float rand_prob = (float)rand()/RAND_MAX, pi_bucket = 0.0;
+
+    for(int action_idx=0; action_idx<_action_size; action_idx++)
+      action_t[action_idx] = 0.0;
+
+    for(int action_idx=0; action_idx<_action_size; action_idx++)
+    {
+      pi_bucket += pi[action_idx];
+      
+      if(rand_prob <= pi_bucket)
+      {
+	motor_msg[0] = _action_code_direction[action_idx%_direction_size];
+	motor_msg[1] = _action_code_speed[action_idx/_direction_size];
+	action_t[action_idx] = 1.0;
+	break;
+      }
+    }
+
+    /*float action_max = (int)(rand()/_action_size);
+    float pi_max =  std::numeric_limits<float>::min();
+
+    for(int action_idx=0; action_idx<_action_size; action_idx++)
+    {
+      if(pi[action_idx] > pi_max)
+      {
+	pi_max = pi[action_idx];
+	motor_msg[0] = _action_code_direction[action_idx%_direction_size];
+	motor_msg[1] = _action_code_speed[action_idx/_direction_size];
+      }
+    }*/
   }
 
   float get_rpe()
@@ -432,17 +470,9 @@ class qbrain
 
   /*------------- Update rules ----------*/
   
-  void update_actor(double delta)
+  /*void update_actor_contGauss(double delta)
   {
     double* policy = get_policy(_num_phi_s,_phi_s_idx,_phi_s_val);
-    
-    // e-trace decay
-    /*for(int state_idx=0; state_idx<_state_size; state_idx++
-      _actor_e[state_idx] = 0.0; //*= _lambda;
-
-    // efference-update of e-trace
-    for(int idx=0; idx<_num_phi_s && _phi_s_idx[idx]<_state_size; idx++)
-      _actor_e[_phi_s_idx[idx]] += _gamma*_phi_s_val[idx]*(_action[action_idx]-policy[action_idx]);*/
     
     float temp = fmod(_action_t-_actor_mean, PI);
 
@@ -450,24 +480,47 @@ class qbrain
     for(int idx=0; idx<_num_phi_s && _phi_s_idx[idx]<_state_size; idx++)
     {
       if(_actor_std)
+      {
 	_actor_w[_phi_s_idx[idx]] = _alpha * delta * _phi_s_val[idx] * temp / _actor_std / _actor_std;      
-
-      if(isinf(_actor_w[_phi_s_idx[idx]]) || isnan(_actor_w[_phi_s_idx[idx]])) cerr<<"\nBad w_mean";
-    }
-
-    for(int idx=0; idx<_num_phi_s && _phi_s_idx[idx]<_state_size; idx++)
-    {
-      if(_actor_std)
 	_actor_w[_state_size + _phi_s_idx[idx]] = _alpha * delta * _phi_s_val[idx] * (temp * temp / _actor_std / _actor_std - 1.0);
+      }
       
-      if(isinf(_actor_w[_state_size + _phi_s_idx[idx]]) || isnan(_actor_w[_state_size + _phi_s_idx[idx]])) cerr<<"\nBad w_std";
+      if(isinf(_actor_w[_phi_s_idx[idx]]) || isnan(_actor_w[_phi_s_idx[idx]]))
+	cerr<<"\nBad w_mean";
+      if(isinf(_actor_w[_state_size + _phi_s_idx[idx]]) || isnan(_actor_w[_state_size + _phi_s_idx[idx]]))
+	cerr<<"\nBad w_std";
     }
 
     if(!_rank)
       cout<<"\n a_t="<<_action_t<<" mu="<<_actor_mean<<" std="<<_actor_std;
-    
-    //if(isnan(_actor_w[state_idx]) || isinf(_actor_w[state_idx])) cerr<<"NANs in w";
 
+    delete[] policy;
+    }*/
+
+  void update_actor(double delta)
+  {
+    double* policy = get_policy(_num_phi_s,_phi_s_idx,_phi_s_val);
+
+    // e-trace decay
+    for(int state_idx=0; state_idx<_state_size; state_idx++)
+      for(int action_idx=0; action_idx<_action_size; action_idx++)
+	_actor_e[state_idx][action_idx] *= _lambda;
+
+    // efference-update of e-trace
+    for(int idx=0; idx<_num_phi_s && _phi_s_idx[idx]<_state_size; idx++)
+      for(int action_idx=0; action_idx<_action_size; action_idx++)
+	_actor_e[_phi_s_idx[idx]][action_idx] += _gamma*_phi_s_val[idx]*(_action[action_idx]-policy[action_idx]);
+    
+    // weight consolidation
+    for(int state_idx=0; state_idx<_state_size; state_idx++)
+      for(int action_idx=0; action_idx<_action_size; action_idx++)
+      {
+	_actor_w[state_idx][action_idx] += _alpha*delta*_actor_e[state_idx][action_idx]*_rho;
+
+	if(isnan(_actor_w[state_idx][action_idx]) && isinf(_actor_w[state_idx][action_idx]))
+	  cerr<<"NANs in w";
+      }
+  
     delete[] policy;
   }
 

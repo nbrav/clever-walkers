@@ -436,7 +436,7 @@ public class PopulateScene : MonoBehaviour
 	    pose = Quaternion.Euler(0.0f, UnityEngine.Random.Range(0, 360), 0.0f);
 
             goal.transform.position = new Vector3(-Mathf.Cos(2*Mathf.PI*index/numOfWalkers)*square_dist, 0.5F, -Mathf.Sin(2*Mathf.PI*index/numOfWalkers)*square_dist);
-            goal.transform.localScale = new Vector3(2.0f, 2.0f, 2.0f);
+            goal.transform.localScale = new Vector3(0.5f, 0.5f, 0.5f);
             goal.GetComponent<Renderer>().material.color = new Color(Mathf.Cos(2*Mathf.PI*index/numOfWalkers), 0.5f, Mathf.Sin(2*Mathf.PI*index/numOfWalkers));
 
             clone.GetComponent<QAgent>().setGoal(goal);

@@ -64,7 +64,7 @@ int main(int argc, char **argv)
 	phi_collide_idx_prev = new int[1000]; phi_collide_val_prev = new float[1000];
 
 	// action coding
-	int direction_size=8, speed_size=3;
+	int direction_size=36, speed_size=1;
 
 	float *action = new float[direction_size*speed_size],
 	  *action_previous = new float[direction_size*speed_size],
@@ -238,40 +238,36 @@ int main(int argc, char **argv)
 	  msgcnt++;
 
 	  // get policies from all modules
-	  //policy_goal = brain_goal.get_policy(num_phi_goal,phi_goal_idx,phi_goal_val);
-	  //policy_collide = brain_collide.get_policy(num_phi_collide,phi_collide_idx,phi_collide_val);
-	  //geocentricate(policy_collide, direction_size, speed_size, heading_direction);
+	  policy_goal = brain_goal.get_policy(num_phi_goal,phi_goal_idx,phi_goal_val);
+	  policy_collide = brain_collide.get_policy(num_phi_collide,phi_collide_idx,phi_collide_val);
+	  geocentricate(policy_collide, direction_size, speed_size, heading_direction);
 
 	  // combine to behavioural policy
-	  //action_selection(policy_behaviour, policy_goal, policy_collide, action_previous, direction_size*speed_size, heading_direction, _master*_VERBOSE_AS);
-
-	  //gain_policy(policy_behaviour,direction_size*speed_size,5.0);
+	  action_selection(policy_behaviour, policy_goal, policy_collide, action_previous, direction_size*speed_size, heading_direction, _master*_VERBOSE_AS);
 
 	  // convert to action distribtions: find motor command (direction,speed) from action distributions
-	  brain_goal.get_motor_msg(motor_msg);
-	  //egocentricate(action_collide,action,direction_size,speed_size,heading_direction); 
+	  brain_goal.get_motor_msg(policy_goal, action, motor_msg);
+	  egocentricate(action_collide,action,direction_size,speed_size,heading_direction); 
 
 	  // history action module
 	  //for(int action_idx=0; action_idx<direction_size*speed_size; action_idx++)
-	  // action_previous[action_idx] = action[action_idx];
+	  //action_previous[action_idx] = action[action_idx];
 	  
 	  // debugging
-	  if(_master*_VERBOSE_AS*(timestep%1000>0 && timestep%1000<10))
+	  if(_master*_VERBOSE_AS) //*(timestep%1000>0 && timestep%1000<10))
 	  {
 	    cout<<"\n";
 	    print_policy(policy_goal,direction_size*speed_size,"goal");     //KL(policy_goal,policy_behaviour,direction_size*speed_size);
-	    print_policy(policy_collide,direction_size*speed_size,"coll");  //KL(policy_collide,policy_behaviour,direction_size*speed_size);
+	    //print_policy(policy_collide,direction_size*speed_size,"coll");  //KL(policy_collide,policy_behaviour,direction_size*speed_size);
 	    print_policy(policy_behaviour,direction_size*speed_size,"beha"); 
 	  }
 
 	  if(!_rank && false)
 	  {
 	    printf("\nA_t:");
-	    for(int action_idx=0; action_idx<24; action_idx++)
-	      printf("%0.1f,",action[action_idx]);
+	    for(int action_idx=0; action_idx<24; action_idx++) printf("%0.1f,",action[action_idx]);
 	    printf("\nA_c:");
-	    for(int action_idx=0; action_idx<24; action_idx++)
-	      printf("%0.1f,",action_collide[action_idx]);
+	    for(int action_idx=0; action_idx<24; action_idx++) printf("%0.1f,",action_collide[action_idx]);
 	  }
 	  
 	  // w += alpha*(r'+gamma*q(s',a')-q(s,a))
@@ -281,7 +277,7 @@ int main(int argc, char **argv)
 	    //brain_collide.update_importance_samples(policy_collide, policy_behaviour, action);
 		  
 	    brain_goal.advance_timestep(num_phi_goal,phi_goal_idx,phi_goal_val,action,reward_goal,timestep);
-	    //brain_collide.advance_timestep(num_phi_collide,phi_collide_idx,phi_collide_val,action_collide,-reward_collide,timestep);
+	    brain_collide.advance_timestep(num_phi_collide,phi_collide_idx,phi_collide_val,action_collide,-reward_collide,timestep);
 	  }
 
 	  // s = s' 
@@ -290,7 +286,7 @@ int main(int argc, char **argv)
 
 	  // a = a'
 	  brain_goal.set_action(action, motor_msg[0]);
-	  //brain_collide.set_action(action_collide);
+	  brain_collide.set_action(action_collide, motor_msg[0]);
 	  
 	  timestep++;
 
