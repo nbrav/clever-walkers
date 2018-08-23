@@ -17,9 +17,9 @@ args = parser.parse_args()
 NUM_AGENTS = args.num_agents; tag = args.num_objectives;
 
 if(tag=="goal"):
-    state_size_x = 15; state_size_y = 15; action_size = 8*5;
+    state_size_x = 15; state_size_y = 15; action_size = 36;
 else:
-    state_size_x = 50; state_size_y = 20; action_size=8*5;
+    state_size_x = 50; state_size_y = 20; action_size=36;
 
 PATH = "./data/";
 
@@ -44,7 +44,7 @@ for agent in range(0,NUM_AGENTS):
 
     print("agent:"+ str(agent) +" #updates:",V.shape[0], "range:",[V.min(),V.max()])
     
-    im = plt.subplot(5,2,agent+1)
+    im = plt.subplot(4,4,agent+1)
     plt.imshow(V[T-1,:,:].T,cmap='Wistia',interpolation="none")
     plt.axis('off')
     plt.ylabel('place cell index')

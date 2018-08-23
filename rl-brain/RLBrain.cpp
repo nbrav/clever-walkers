@@ -112,7 +112,7 @@ class qbrain
     
     //for (int speed_idx=0; speed_idx<speed_size; speed_idx++)
     //  _action_code_speed[speed_idx] = float(speed_idx)/float(speed_size);
-    _action_code_speed[0] = 0.5f;
+    _action_code_speed[0] = 1.0f; //0.5f;
     
     // initialize actor
     _actor_e.resize(_state_size);
@@ -232,12 +232,12 @@ class qbrain
     fclose(state_outfile);    
   }
 
-  /* TODO void action_log()
+  void action_log()
   {
     action_outfile = fopen(("./data/action."+_tag+"."+std::to_string(_rank)+".log").c_str(), "ab"); //ab
-    fwrite(&_action, sizeof(int), 1, action_outfile);
+    fwrite(&_action[0], sizeof(float), _action_size, action_outfile);
     fclose(action_outfile);    
-    }*/
+  }
 
   void reward_log()
   {
@@ -329,7 +329,7 @@ class qbrain
 
     for(int action_idx=0; action_idx<_action_size; action_idx++)
     {
-      policy[action_idx] = h[action_idx]; //exp((h[action_idx]-hmax));
+      policy[action_idx] = exp((h[action_idx]-hmax));
       policy_sum += policy[action_idx];
 
       if(isnan(policy[action_idx]) || isinf(policy[action_idx]))
@@ -338,7 +338,7 @@ class qbrain
 
     if(policy_sum==0)
     {
-      //if(_num_phi_s != 0) cout<<"ZERO-SUM '"<<_tag<<"'POLICY!";
+      if(_num_phi_s != 0) cout<<"ZERO-SUM '"<<_tag<<"'POLICY!";
       for(int action_idx=0; action_idx<_action_size; action_idx++)
 	policy[action_idx] = 1.0/float(_action_size);
     }
@@ -362,7 +362,10 @@ class qbrain
     return policy;
   }
 
-  /*void get_motor_msg_contGauss(float* motor_msg)
+  // -----------------------------------
+  // action ~ Gaussian(mean=W1.phi(s),var=W2.phi(s))
+  // -----------------------------------
+  void get_motor_msg_contGauss(float* motor_msg)
   {
     _actor_mean = 0.0;
     for(int idx=0; idx<_num_phi_s && _phi_s_idx[idx]<_state_size; idx++)
@@ -390,11 +393,11 @@ class qbrain
 
     if(!_rank)
       cout<<"\nA: ["<<motor_msg[0]<<","<<motor_msg[1]<<"] ~ N("<<_actor_mean<<","<<_actor_std<<")";   
-  }*/
+  }
 
+  // soft-max action-selection from policy pi
   void get_motor_msg(double* pi, float* action_t, float* motor_msg)
   {
-    // SOFT-MAX action-selection
     float rand_prob = (float)rand()/RAND_MAX, pi_bucket = 0.0;
 
     for(int action_idx=0; action_idx<_action_size; action_idx++)
@@ -412,19 +415,6 @@ class qbrain
 	break;
       }
     }
-
-    /*float action_max = (int)(rand()/_action_size);
-    float pi_max =  std::numeric_limits<float>::min();
-
-    for(int action_idx=0; action_idx<_action_size; action_idx++)
-    {
-      if(pi[action_idx] > pi_max)
-      {
-	pi_max = pi[action_idx];
-	motor_msg[0] = _action_code_direction[action_idx%_direction_size];
-	motor_msg[1] = _action_code_speed[action_idx/_direction_size];
-      }
-    }*/
   }
 
   float get_rpe()
@@ -444,20 +434,18 @@ class qbrain
   
   /*-------experimental update rules ----------*/
 
-  /*void update_importance_samples(double* policy_our, double* policy_behaviour, int a_t)
+  void update_importance_samples(double* policy_our, double* policy_behaviour, float* a_t)
   {
     float _rho_t = 0;
     
-    if(a_t<0 || a_t>=_action_size)
-      cerr<<"Invalided action for importance sampling!";
+    for(int action_idx=0; action_idx<_action_size; action_idx++)
+      if(!policy_behaviour[action_idx]==0.0)
+	_rho = a_t[action_idx]*policy_our[action_idx]/policy_behaviour[action_idx];
     
-    if(!policy_behaviour[a_t]==0.0)
-      _rho_t = policy_our[a_t]/policy_behaviour[a_t];
-    
-    _rho = _rho_t<1?_rho_t:1.0;
+    _rho = _rho<1?_rho_t:1.0;
   }
 
-  double grad_entropy(double* policy)
+  /*double grad_entropy(double* policy)
   {
     double grad_H = 0.0;
 
@@ -565,7 +553,8 @@ class qbrain
 
     _reward = reward;
     _time = time;
-    
+
+    action_log();
     if(_time%1000==0)
     {
       actor_log();

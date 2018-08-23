@@ -114,7 +114,8 @@ public class PopulateScene : MonoBehaviour
         IPEndPoint sender;
         EndPoint Remote;
 
-        Time.timeScale = LearningTimeScale;
+	if (Learning)
+	    Time.timeScale = LearningTimeScale;
 
         if (agent.Length<numOfWalkers)
             return;
@@ -431,10 +432,13 @@ public class PopulateScene : MonoBehaviour
             goal.name = "goal" + index.ToString();
 
             clone.GetComponent<Renderer>().material.color = new Color(Mathf.Cos(2*Mathf.PI*index/numOfWalkers), 0.5f, Mathf.Sin(2*Mathf.PI*index/numOfWalkers));
+	    
+	    //if(index==0 || index==3 || index == 6 || index==9)
+	    clone.GetComponent<QAgent>().setAgentColor(new Color(Mathf.Cos(2*Mathf.PI*index/numOfWalkers), 0.5f, Mathf.Sin(2*Mathf.PI*index/numOfWalkers)));
 
             location = new Vector3(Mathf.Cos(2*Mathf.PI*index/numOfWalkers)*square_dist, 0, Mathf.Sin(2*Mathf.PI*index/numOfWalkers)*square_dist);
-	    pose = Quaternion.Euler(0.0f, UnityEngine.Random.Range(0, 360), 0.0f);
-
+	    pose = Quaternion.Euler(0.0f, -90.0f-360.0f*index/numOfWalkers, 0.0f); 
+	    
             goal.transform.position = new Vector3(-Mathf.Cos(2*Mathf.PI*index/numOfWalkers)*square_dist, 0.5F, -Mathf.Sin(2*Mathf.PI*index/numOfWalkers)*square_dist);
             goal.transform.localScale = new Vector3(0.5f, 0.5f, 0.5f);
             goal.GetComponent<Renderer>().material.color = new Color(Mathf.Cos(2*Mathf.PI*index/numOfWalkers), 0.5f, Mathf.Sin(2*Mathf.PI*index/numOfWalkers));
@@ -487,11 +491,11 @@ public class PopulateScene : MonoBehaviour
         clone.GetComponent<QAgent>().setResetPose(location, pose);
 
         // draw PlaceCells state
-        if (VizPlaceCell && index==2)
+        if (VizPlaceCell && index==0)
             clone.GetComponent<QAgent>().vizPlaceCell = true;
 
         // draw sector state
-        if (VizCollisionCells && index == 2)
+        if (VizCollisionCells && index == 0)
 	    clone.GetComponent<QAgent>().vizCollisionCells = true;
 
         // draw indicator reward

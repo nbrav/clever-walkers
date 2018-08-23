@@ -29,11 +29,11 @@ public class QAgent : MonoBehaviour
     List<DrawEllipse> ellipseCollisionCell = new List<DrawEllipse>();
 
     // allo-centric state-space parameters
-    int NUM_PC = 225;
-    float M = 15.0f, N = 15.0f;
+    int NUM_PC = 400;
+    float M = 20.0f, N = 20.0f;
     float[,] placecell;
-    float PC_SIZE = 2.5f; //size of place-cell
-    float pc_sigma = 2.5f; //variance of place-cell Gaussian
+    float PC_SIZE = 1.5f; //size of place-cell
+    float pc_sigma = 1.5f; //variance of place-cell Gaussian
     float potential_previous = -1.0f;
 
     // draw circle for place-cells
@@ -114,16 +114,6 @@ public class QAgent : MonoBehaviour
 	    sector_angles[num_sector+sector] = - (Mathf.Pow(baseline,sector)-1)*baseline_theta;
 
         collisioncell = new float[num_sector*2*num_disc*8, 6];
-	
-	/* EQUI-COLLISION_CELLS
-	disc_radii = new float[] {1.0f,2.0f,4.0f,8.0f};
-	
-	for (int sector=0; sector<num_sector; sector++)
-	    sector_angles[sector] = sector*Mathf.PI/num_sector;
-	
-	for (int sector=0; sector<num_sector; sector++)
-	    sector_angles[num_sector+sector] = -(sector+1)*Mathf.PI/num_sector;
-	*/
 
 	for (int sector=0; sector<num_sector*2; sector++)
 	    for (int disc=0; disc<num_disc; disc++)
@@ -219,15 +209,18 @@ public class QAgent : MonoBehaviour
         goalObject = goal;
     }
 
+    public void setAgentColor(Color _thisColor)
+    {
+        thisColor = _thisColor;;
+    }
+
     /*---------------------------------------------------------------
                              motor system
     ---------------------------------------------------------------*/
 
     public void set_udp(float[] motor_command, bool pause)
     {
-	if(pause)
-	    do_jump_action(0.0f, 0.0f);
-	else    
+	if(!pause)
 	    do_jump_action(motor_command[0]*180.0f/Mathf.PI, motor_command[1]);
     }
 
@@ -247,7 +240,7 @@ public class QAgent : MonoBehaviour
 	
         // visualize trail
         Vector3 ray_vector = next_position;
-        if(VizTrail) DrawLine(ray_origin, ray_vector, thisColor, 25);
+        if(VizTrail) DrawLine(ray_origin, ray_vector, thisColor, 50);
     }
 
     /*---------------------------------------------------------------
@@ -714,3 +707,4 @@ public class QAgent : MonoBehaviour
     }
 
 }
+
