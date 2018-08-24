@@ -53,29 +53,19 @@ def create_patches(Q,ax):
     return patches        
 
 if(tag=="goal"):
-    state_size_x = 15; state_size_y = 15*2; action_size = 36*3;
+    state_size_x = 20; state_size_y = 20; action_size = 2 #36*3;
 else:
-    state_size_x = 50; state_size_y = 20; action_size = 36*3;
+    state_size_x = 50; state_size_y = 20; action_size = 2 #36*3;
 
 fig = plt.figure(figsize=(12,12))
 
 ax1 = plt.subplot(1,1,1)
 
 VIEW_WEIGHTS = False
-VIEW_QUIVER = True
+VIEW_QUIVER = False
 VIEW_DYNAMICS = False
+VIEW_CONT = True
 
-if VIEW_QUIVER:
-    
-    FILE_NAME = PATH+"qvalue."+tag+"."+str(agent)+".log";
-    qtable = np.fromfile(FILE_NAME,np.float32)
-    Q = qtable.reshape(int(len(qtable)/state_size_x/state_size_y/action_size), state_size_x, state_size_y, action_size)
-    Q = Q[-1,:,:,:];
-    Qmax = np.max(Q); Qmin = np.min(Q);
-    
-    ax1.set_xticks(()); ax1.set_yticks(());    
-    patches = create_patches(Q,ax1);
-    
 if VIEW_WEIGHTS:
     
     for agent in range(0,NUM_AGENTS):
@@ -88,13 +78,25 @@ if VIEW_WEIGHTS:
         print("agent:"+ str(agent) +" #updates:",Q.shape[0], "sum(Q)=", Q.sum())
         
         im = plt.subplot(NUM_AGENTS,1,agent+1)
-        plt.imshow(Q[-1,:,:].T,cmap='binary',interpolation="none")
+        #plt.imshow(Q[-1,:,:].T,cmap='binary',interpolation="none")
+        plt.plot(Q[:,:,0])
         plt.xlabel('place cell index'); plt.ylabel('action index');
         plt.title("Agent "+str(agent))
 
-        plt.colorbar(orientation="horizontal")
+        #plt.colorbar(orientation="horizontal")
         plt.suptitle("Q-values (learning)\nwith "+str(NUM_AGENTS)+" agents")
 
+if VIEW_QUIVER:
+    
+    FILE_NAME = PATH+"qvalue."+tag+"."+str(agent)+".log";
+    qtable = np.fromfile(FILE_NAME,np.float32)
+    Q = qtable.reshape(int(len(qtable)/state_size_x/state_size_y/action_size), state_size_x, state_size_y, action_size)
+    Q = Q[-1,:,:,:];
+    Qmax = np.max(Q); Qmin = np.min(Q);
+    
+    ax1.set_xticks(()); ax1.set_yticks(());    
+    patches = create_patches(Q,ax1);
+    
 if VIEW_DYNAMICS:
     
     FILE_NAME = PATH+"qvalue."+tag+"."+str(agent)+".log";
@@ -117,4 +119,14 @@ if VIEW_DYNAMICS:
     
     plt.suptitle("Q-values (learning)\nwith "+str(NUM_AGENTS)+" agents")
 
+if VIEW_CONT:
+    nSx = 20; nSy = 20; nPI = 4
+
+    FILE_NAME = PATH+"qvalue."+tag+"."+str(agent)+".log";
+    actor = np.fromfile(FILE_NAME,np.float32)
+    actor = np.reshape(actor,(int(actor.shape[0]/nSx/nSy/nPI),nPI,nSx,nSy))
+    plt.imshow(actor[-1,2,:,:].T,cmap='binary',interpolation="none");
+    plt.colorbar(); plt.show()
+
+    
 plt.show()

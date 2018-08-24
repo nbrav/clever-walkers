@@ -67,26 +67,29 @@ void action_selection (double* policy_behaviour, double* policy_goal, double* po
   double policy_sum = 0;
   
   // initialize previous action policy
-  /*double _tau_previous = 0.25;
+  double _tau2_previous = 1.0;
+  int action_previous_index = rand()%action_size;
+  for(int action_idx=0; action_idx<action_size; action_idx++)
+    if(action_previous[action_idx]==1)
+      action_previous_index = action_idx;
   for(int action_idx=0; action_idx<action_size; action_idx++)
   {
-    policy_prev[action_idx] = exp(action_previous[action_idx]/_tau_previous);
+    int action_diff = (action_idx-action_previous_index)%action_size;
+    policy_prev[action_idx] = sqrt(2*PI*_tau2_previous)*exp(-action_diff*action_diff/2/_tau2_previous);
     policy_sum += policy_prev[action_idx];
   }
+  if(policy_sum==0)
+    rectify_zero(policy_prev, action_size);
   for(int action_idx=0; action_idx<action_size; action_idx++)
-    policy_prev[action_idx] /= policy_sum;*/
+    policy_prev[action_idx] /= policy_sum;
   
   // behaviour <- pi_prev * goal * collide
   for(int action_idx=0; action_idx<action_size; action_idx++)
   {
     policy_behaviour[action_idx] = 1;//pow(policy_prev[action_idx];
     policy_behaviour[action_idx] *= policy_goal[action_idx];
-    //policy_behaviour[action_idx] *= policy_prev[action_idx];
-
-    /*if(policy_collide[action_idx] != 0)
-      policy_behaviour[action_idx] /= policy_collide[action_idx];
-    else
-      policy_behaviour[action_idx] = 0;*/
+    //policy_behaviour[action_idx] *= policy_prev[action_idx];    
+    //policy_behaviour[action_idx] *= policy_collide[action_idx];
   }
 
   // compute and normalize pi_final
@@ -104,6 +107,16 @@ void action_selection (double* policy_behaviour, double* policy_goal, double* po
   check_nan(policy_behaviour,action_size);
   check_nan(policy_goal,action_size);
   check_nan(policy_collide,action_size);
+
+  // debugging
+  if(DEBUG)
+  {
+    cout<<"\n";
+    print_policy(policy_goal,36,"goal");     //KL(policy_goal,policy_behaviour,direction_size*speed_size);
+    //print_policy(policy_prev,36,"prev");
+    print_policy(policy_collide,36,"coll");  //KL(policy_collide,policy_behaviour,direction_size*speed_size);
+    print_policy(policy_behaviour,36,"beha"); 
+  }
 
   delete[] policy_goal;
   delete[] policy_collide;

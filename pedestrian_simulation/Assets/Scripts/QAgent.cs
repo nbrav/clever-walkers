@@ -221,11 +221,29 @@ public class QAgent : MonoBehaviour
     public void set_udp(float[] motor_command, bool pause)
     {
 	if(!pause)
-	    do_jump_action(motor_command[0]*180.0f/Mathf.PI, motor_command[1]);
+	    do_jump_action(motor_command[0]/5.0f, motor_command[1]/5.0f);
     }
 
     // instantaneous translation+rotation
-    void do_jump_action(float action_angle, float action_speed)
+    void do_jump_action(float vx, float vy)
+    {
+        Vector3 ray_origin = transform.position;
+
+        //check if about to go outside field
+	Vector3 next_position = gameObject.GetComponent<Rigidbody>().position + new Vector3(vx,0,vy);
+        if (at_edge(next_position)) return;
+
+	//actual translate
+	transform.Translate(vx, 0, vy);
+        gameObject.GetComponent<Rigidbody>().velocity = Vector3.zero;
+
+        // visualize trail
+        Vector3 ray_vector = next_position;
+        if(VizTrail) DrawLine(ray_origin, ray_vector, thisColor, 50);
+    }
+
+    // instantaneous translation+rotation
+    /*void do_jump_action_polar(float action_angle, float action_speed)
     {
         Vector3 ray_origin = transform.position;
 
@@ -241,7 +259,7 @@ public class QAgent : MonoBehaviour
         // visualize trail
         Vector3 ray_vector = next_position;
         if(VizTrail) DrawLine(ray_origin, ray_vector, thisColor, 50);
-    }
+    }*/
 
     /*---------------------------------------------------------------
                              sensory system
@@ -581,7 +599,7 @@ public class QAgent : MonoBehaviour
         {
             float reward_shape = potential_previous - Vector3.Distance(goalObject.transform.position, transform.position);
             potential_previous = Vector3.Distance(goalObject.transform.position, transform.position);
-            return Mathf.Max(Mathf.Min(reward_shape, 1.0f), -1.0f);
+            return -0.01f+Mathf.Max(Mathf.Min(reward_shape, 1.0f), -1.0f);
         }
         else
         {

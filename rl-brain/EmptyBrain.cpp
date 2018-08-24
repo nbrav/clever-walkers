@@ -95,7 +95,7 @@ int main(int argc, char **argv)
 
 	// message coding
 	float sensor_msg[1000];
-	float motor_msg[2];  // (direction,speed)	
+	float motor_msg[2];  // (v_x,v_y)
 	float heading_direction = 0.0;
 	
 	/* create (multi-)brain objects */
@@ -110,6 +110,8 @@ int main(int argc, char **argv)
 	float reward_goal_trial=0, reward_collide_trial=0;
 	float temp, temp_max=1.0, temp_min=0.01;
 	int HALTING=false;
+
+	unsigned seed;
 
 	/* setting-up socket material*/
 
@@ -145,7 +147,7 @@ int main(int argc, char **argv)
 	
 	float Tr = 50*1000, Te = 10*1000;
 
-	motor_msg[0] = 0.0f; motor_msg[1] = 0.1f; // DEBUGINN
+	motor_msg[0] = 0.0f; motor_msg[1] = 0.0f; // DEBUGINN
 	
 	// >---------------------------------------------------> //
 	// ^                    master loop                    v //
@@ -197,7 +199,7 @@ int main(int argc, char **argv)
 	  }
 
 	  // debug printing
-	  if(_VERBOSE_UDP && _master && false) 
+	  if(_VERBOSE_UDP && _master) 
 	  {
 	    printf("\n\n\nRAW_UDP [AgIdx:%d T:%d] ",_rank,timestep);
 	    
@@ -252,22 +254,31 @@ int main(int argc, char **argv)
 	  msgcnt++;
 
 	  // get policies from all modules
-	  policy_goal = brain_goal.get_policy(num_phi_goal,phi_goal_idx,phi_goal_val);
-	  policy_collide = brain_collide.get_policy(num_phi_collide,phi_collide_idx,phi_collide_val);
-	  geocentricate(policy_collide, direction_size, speed_size, heading_direction);
+	  policy_goal = brain_goal.compute_policy_cont(num_phi_goal,phi_goal_idx,phi_goal_val);
+	  //DEBUG policy_goal = brain_goal.get_policy(num_phi_goal,phi_goal_idx,phi_goal_val);
+	  //DEBUG policy_collide = brain_collide.get_policy(num_phi_collide,phi_collide_idx,phi_collide_val);
+	  //DEBUG geocentricate(policy_collide, direction_size, speed_size, heading_direction);
 
 	  // combine to behavioural policy
-	  action_selection(policy_behaviour, policy_goal, policy_collide, action_previous, direction_size*speed_size, heading_direction, _master*_VERBOSE_AS);
+	  //DEBUG action_selection(policy_behaviour, policy_goal, policy_collide, action_previous, direction_size*speed_size, heading_direction, _master*_VERBOSE_AS);
 
 	  // convert to action distribtions: find motor command (direction,speed) from action distributions
-	  brain_goal.get_motor_msg(policy_behaviour, action, motor_msg);
-	  egocentricate(action_collide,action,direction_size,speed_size,heading_direction); 
+	  //DEBUG brain_goal.get_motor_msg(policy_behaviour, action, motor_msg);
+	  //DEBUG brain_goal.get_motor_msg_cont(motor_msg);
+	  //DEBUG egocentricate(action_collide,action,direction_size,speed_size,heading_direction); 
+
+	  seed = std::chrono::system_clock::now().time_since_epoch().count();
+	  std::normal_distribution<double> N_x(policy_goal[0],policy_goal[1]);
+	  std::normal_distribution<double> N_y(policy_goal[2],policy_goal[3]);
+	  std::default_random_engine generator(seed);
+	  
+	  motor_msg[0] = fmax(fmin(N_x(generator),1),-1);
+	  motor_msg[1] = fmax(fmin(N_y(generator),1),-1);
 
 	  // history action module
-	  for(int action_idx=0; action_idx<direction_size*speed_size; action_idx++)
-	    action_previous[action_idx] = action[action_idx];
+	  //DEBUG for(int action_idx=0; action_idx<direction_size*speed_size; action_idx++)
+	  //DEBUG  action_previous[action_idx] = action[action_idx];
 	  
-	  // w += alpha*(r'+gamma*q(s',a')-q(s,a))
 	  if(LEARNING)
 	  {
 	    //brain_goal.update_importance_samples(policy_goal, policy_behaviour, action);
@@ -279,12 +290,13 @@ int main(int argc, char **argv)
 
 	  // s = s' 
 	  brain_goal.set_state(num_phi_goal,phi_goal_idx,phi_goal_val);
-	  brain_collide.set_state(num_phi_collide, phi_collide_idx, phi_collide_val);
+	  //brain_collide.set_state(num_phi_collide, phi_collide_idx, phi_collide_val);
 
 	  // a = a'
-	  brain_goal.set_action(action, motor_msg[0]);
-	  brain_collide.set_action(action_collide, motor_msg[0]);
-	  
+	  //DEBUG brain_goal.set_action(action, motor_msg[0]);
+	  brain_goal.set_action_cont(motor_msg[0],motor_msg[1]);
+	  //DEBUG brain_collide.set_action(action_collide, motor_msg[0]);
+
 	  timestep++;
 
 	  if(_master && msgcnt%1000==1)

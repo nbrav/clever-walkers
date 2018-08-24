@@ -54,7 +54,7 @@ public class PopulateScene : MonoBehaviour
     /* Episode variables */
 
     int frameRate = 30;
-    float trial_duration = 100.0F; // sec
+    float trial_duration = 1000.0F; //100.0F; // sec
     float time_per_update = 0.5F; // in sec
     float[] reset_counter;
 
@@ -138,7 +138,6 @@ public class PopulateScene : MonoBehaviour
         // execute brain update
         try
         {
-            // receive all action
             for (int idx = 0; idx < numOfWalkers; idx++)
             {
                 // finding any client
@@ -197,6 +196,8 @@ public class PopulateScene : MonoBehaviour
                 List<float> state_reward;
                 state_reward = agent[idx].GetComponent<QAgent>().get_udp();
 
+		//Debug.Log(motor_command[1]+" "+state_reward[state_reward.Count-3]);
+		
                 float[] data_out_int = new float[(state_reward.Count + 1)];
                 byte[] data_out = new byte[sizeof(float) * (state_reward.Count + 1)];
 
@@ -237,7 +238,7 @@ public class PopulateScene : MonoBehaviour
         Quaternion pose = Quaternion.identity;
         GameObject goal;
 
-        float square_dist = 13f;
+        float square_dist = 10f;
 
         string SCENARIO =  "circle"; //"crossing";; //"hallway"; //"narrowpassage";
 
@@ -433,8 +434,8 @@ public class PopulateScene : MonoBehaviour
 
             clone.GetComponent<Renderer>().material.color = new Color(Mathf.Cos(2*Mathf.PI*index/numOfWalkers), 0.5f, Mathf.Sin(2*Mathf.PI*index/numOfWalkers));
 	    
-	    //if(index==0 || index==3 || index == 6 || index==9)
-	    clone.GetComponent<QAgent>().setAgentColor(new Color(Mathf.Cos(2*Mathf.PI*index/numOfWalkers), 0.5f, Mathf.Sin(2*Mathf.PI*index/numOfWalkers)));
+	    if(index==0 || index==3 || index == 6 || index==9)
+		clone.GetComponent<QAgent>().setAgentColor(new Color(Mathf.Cos(2*Mathf.PI*index/numOfWalkers), 0.5f, Mathf.Sin(2*Mathf.PI*index/numOfWalkers)));
 
             location = new Vector3(Mathf.Cos(2*Mathf.PI*index/numOfWalkers)*square_dist, 0, Mathf.Sin(2*Mathf.PI*index/numOfWalkers)*square_dist);
 	    pose = Quaternion.Euler(0.0f, -90.0f-360.0f*index/numOfWalkers, 0.0f); 
